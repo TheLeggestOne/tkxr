@@ -1,0 +1,13 @@
+id: bug-oR_m-Udg
+type: bug
+title: Horizonal scroll in kanban
+status: done
+createdAt: 2026-02-19T22:41:57.600Z
+updatedAt: 2026-02-19T22:45:28.339Z
+description: >-
+  When hovering ticket card elements, they grow a bit, which causes a horizonal scroll to appear on the kanban lane. We
+  don't want that to happen
+assignee: use-JTYCH2se
+sprint: spr-hDifgOv0
+priority: medium
+estimate: 2

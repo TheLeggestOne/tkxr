@@ -112,10 +112,10 @@
 	] as const;
 </script>
 
-<div class="kanban-board grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+<div class="kanban-board">
 	{#each columns as column}
 		<div 
-			class="kanban-column flex flex-col {column.bgClass} rounded-lg p-4 min-h-96"
+			class="kanban-column flex flex-col {column.bgClass} rounded-lg p-4"
 			on:dragover={handleDragOver}
 			on:dragenter={handleDragEnter}
 			on:dragleave={handleDragLeave}
@@ -182,7 +182,35 @@
 
 <style>
 	.kanban-board {
-		height: calc(100vh - 280px); /* Adjust based on header height */
+		display: flex;
+		gap: 1.5rem;
+		overflow-x: auto;
+		overflow-y: hidden;
+		padding-bottom: 0.5rem;
+		min-height: calc(100vh - 280px);
+	}
+	
+	.kanban-column {
+		flex: 1;
+		min-width: 280px;
+		max-width: 400px;
+		min-height: 500px;
+		transition: all 0.2s ease-in-out;
+	}
+
+	/* Mobile: stack columns vertically */
+	@media (max-width: 768px) {
+		.kanban-board {
+			flex-direction: column;
+			overflow-x: hidden;
+			overflow-y: auto;
+		}
+		
+		.kanban-column {
+			min-width: 100%;
+			max-width: 100%;
+			min-height: 300px;
+		}
 	}
 	
 	.kanban-column.drag-over {
@@ -199,9 +227,5 @@
 	
 	.kanban-ticket {
 		transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-	}
-
-	.kanban-column {
-		transition: all 0.2s ease-in-out;
 	}
 </style>
