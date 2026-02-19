@@ -9,13 +9,16 @@
 	import CreateTicketModal from '../lib/CreateTicketModal.svelte';
 	import ManageModal from '../lib/ManageModal.svelte';
 	import EditTicketModal from '../lib/EditTicketModal.svelte';
+	import CommentsModal from '../lib/CommentsModal.svelte';
 	import DarkModeToggle from '../lib/DarkModeToggle.svelte';
 	import { ticketStore, sprintStore, userStore } from '../lib/stores';
 
 	let showCreateModal = false;
 	let showManageModal = false;
 	let showEditModal = false;
+	let showCommentsModal = false;
 	let editingTicket = null;
+	let commentsTicket = null;
 	let activeTab = 'all';
 	let selectedSprint = 'all'; // all, no-sprint, or sprint ID
 	let searchTerm = '';
@@ -84,6 +87,11 @@
 	function handleEditTicket(ticket) {
 		editingTicket = ticket;
 		showEditModal = true;
+	}
+
+	function handleCommentsTicket(ticket) {
+		commentsTicket = ticket;
+		showCommentsModal = true;
 	}
 
 	$: filteredTickets = $ticketStore
@@ -375,7 +383,7 @@
 	<!-- Tickets Grid -->
 	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 		{#each filteredTickets as ticket (ticket.id)}
-			<TicketCard {ticket} on:updated={loadData} on:edit={() => handleEditTicket(ticket)} />
+			<TicketCard {ticket} on:updated={loadData} on:edit={() => handleEditTicket(ticket)} on:comments={() => handleCommentsTicket(ticket)} />
 		{/each}
 		
 		{#if filteredTickets.length === 0}
@@ -411,6 +419,15 @@
 			ticket={editingTicket}
 			on:close={() => { showEditModal = false; editingTicket = null; }}
 			on:updated={loadData}
+		/>
+	{/if}
+
+	<!-- Comments Modal -->
+	{#if showCommentsModal && commentsTicket}
+		<CommentsModal 
+			ticket={commentsTicket}
+			isOpen={showCommentsModal}
+			on:close={() => { showCommentsModal = false; commentsTicket = null; }}
 		/>
 	{/if}
 </div>

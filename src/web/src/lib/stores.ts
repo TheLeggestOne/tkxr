@@ -16,6 +16,15 @@ export interface Ticket {
   updatedAt: string;
 }
 
+export interface TicketComment {
+  id: string;
+  ticketId: string;
+  author: string; // User ID
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Sprint {
   id: string;
   name: string;

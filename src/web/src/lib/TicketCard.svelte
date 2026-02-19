@@ -8,6 +8,7 @@
 	import Calendar from './icons/Calendar.svelte';
 	import Edit from './icons/Edit.svelte';
 	import Trash from './icons/Trash.svelte';
+	import MessageSquare from './icons/MessageSquare.svelte';
 	import ChevronDown from './icons/ChevronDown.svelte';
 	import type { Ticket } from './stores';
 	import { userStore, sprintStore } from './stores';
@@ -135,6 +136,13 @@
 			{ticket.title}
 		</h3>
 		<div class="flex gap-1 ml-2">
+			<button 
+				class="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+				title="View comments"
+				on:click={() => dispatch('comments')}
+			>
+				<MessageSquare size={14} />
+			</button>
 			<button 
 				class="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
 				title="Edit ticket"

@@ -1,9 +1,9 @@
 id: tas-hhWcu34a
 type: task
 title: Add Conversations
-status: todo
+status: done
 createdAt: 2026-02-19T18:07:17.047Z
-updatedAt: 2026-02-19T18:07:17.047Z
+updatedAt: 2026-02-19T20:48:11.074Z
 description: >-
   As progress on tickets is made, users may want to add comments to the ticket. Add a conversion feature to keep running
   messages with a modal to display and add more comments.

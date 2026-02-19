@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import yaml from 'js-yaml';
 import { nanoid } from 'nanoid';
-import type { Ticket, Sprint, User, TicketType } from './types.js';
+import type { Ticket, Sprint, User, TicketType, TicketComment } from './types.js';
 
 export class FileStorage {
   constructor(private basePath: string = './tickets') {}
@@ -190,5 +190,34 @@ export class FileStorage {
 
   async getUsers(): Promise<User[]> {
     return this.listEntities<User>('users');
+  }
+
+  // Comment methods
+  async createComment(ticketId: string, author: string, content: string): Promise<TicketComment> {
+    const now = new Date();
+    const comment: TicketComment = {
+      id: this.generateId('comment'),
+      ticketId,
+      author,
+      content,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.saveEntity('comments', comment);
+    return comment;
+  }
+
+  async getComments(ticketId: string): Promise<TicketComment[]> {
+    try {
+      const allComments = await this.listEntities<TicketComment>('comments');
+      return allComments.filter(comment => comment.ticketId === ticketId);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  async deleteComment(commentId: string): Promise<boolean> {
+    return this.deleteEntity('comments', commentId);
   }
 }

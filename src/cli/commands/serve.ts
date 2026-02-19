@@ -206,6 +206,65 @@ export async function startServer(args: ServeArgs): Promise<void> {
     }
   });
 
+  // Comments API
+  app.get('/api/tickets/:ticketId/comments', async (req, res) => {
+    try {
+      const { ticketId } = req.params;
+      const comments = await storage.getComments(ticketId);
+      res.json(comments);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to load comments' });
+    }
+  });
+
+  app.post('/api/tickets/:ticketId/comments', async (req, res) => {
+    try {
+      const { ticketId } = req.params;
+      const { content, author } = req.body;
+      
+      if (!content || !content.trim()) {
+        return res.status(400).json({ error: 'Comment content is required' });
+      }
+
+      if (!author) {
+        return res.status(400).json({ error: 'Comment author is required' });
+      }
+
+      const comment = await storage.createComment(ticketId, author, content.trim());
+      
+      // Broadcast to WebSocket clients
+      broadcast(wss, { 
+        type: 'comment_created', 
+        data: comment 
+      });
+      
+      res.json(comment);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create comment' });
+    }
+  });
+
+  app.delete('/api/comments/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteComment(id);
+
+      if (!deleted) {
+        return res.status(404).json({ error: 'Comment not found' });
+      }
+
+      // Broadcast to WebSocket clients
+      broadcast(wss, { 
+        type: 'comment_deleted', 
+        data: { id } 
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete comment' });
+    }
+  });
+
   app.post('/api/sprints', async (req, res) => {
     try {
       const { name, description, goal } = req.body;
