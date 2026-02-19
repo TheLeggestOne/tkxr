@@ -9,10 +9,24 @@
 	import Edit from './icons/Edit.svelte';
 	import Trash from './icons/Trash.svelte';
 	import type { Ticket } from './stores';
+	import { userStore, sprintStore } from './stores';
 
 	export let ticket: Ticket;
 
 	const dispatch = createEventDispatcher();
+
+	// Helper functions to get display names
+	$: getUserDisplayName = (userId: string | undefined) => {
+		if (!userId) return undefined;
+		const user = $userStore.find(u => u.id === userId);
+		return user?.displayName || userId;
+	};
+
+	$: getSprintName = (sprintId: string | undefined) => {
+		if (!sprintId) return undefined;
+		const sprint = $sprintStore.find(s => s.id === sprintId);
+		return sprint?.name || sprintId;
+	};
 
 	const statusConfig = {
 		todo: { icon: Clock, color: 'text-gray-600', bg: 'bg-gray-100', label: 'To Do' },
@@ -119,14 +133,14 @@
 		{#if ticket.assignee}
 			<div class="flex items-center gap-2 text-sm text-gray-600">
 				<User size={16} />
-				<span>{ticket.assignee}</span>
+				<span>{getUserDisplayName(ticket.assignee)}</span>
 			</div>
 		{/if}
 
 		{#if ticket.sprint}
 			<div class="flex items-center gap-2 text-sm text-gray-600">
 				<Calendar size={16} />
-				<span>{ticket.sprint}</span>
+				<span>{getSprintName(ticket.sprint)}</span>
 			</div>
 		{/if}
 

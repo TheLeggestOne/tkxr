@@ -12,9 +12,11 @@ interface ListArgs extends minimist.ParsedArgs {
   s?: string; // alias for search
   'sort-by'?: 'title' | 'status' | 'priority' | 'created' | 'updated';
   order?: 'asc' | 'desc';
+  verbose?: boolean;
+  v?: boolean; // alias for verbose
 }
 
-function formatTicket(ticket: Ticket): string {
+function formatTicket(ticket: Ticket, verbose: boolean = false, users: User[] = [], sprints: Sprint[] = []): string {
   const statusColors = {
     todo: chalk.gray,
     progress: chalk.yellow,
@@ -31,7 +33,25 @@ function formatTicket(ticket: Ticket): string {
   const statusColor = statusColors[ticket.status] || chalk.white;
   const prioritySymbol = ticket.priority ? prioritySymbols[ticket.priority] : '●';
   
-  return `${chalk.blue(ticket.id)} ${statusColor(ticket.status.padEnd(8))} ${prioritySymbol} ${ticket.title}`;
+  let result = `${chalk.blue(ticket.id)} ${statusColor(ticket.status.padEnd(8))} ${prioritySymbol} ${ticket.title}`;
+  
+  if (verbose) {
+    const assigneeDisplay = ticket.assignee 
+      ? users.find(u => u.id === ticket.assignee)?.displayName || ticket.assignee 
+      : '';
+    const sprintDisplay = ticket.sprint 
+      ? sprints.find(s => s.id === ticket.sprint)?.name || ticket.sprint 
+      : '';
+      
+    if (assigneeDisplay || sprintDisplay) {
+      const details = [];
+      if (assigneeDisplay) details.push(chalk.dim(`@${assigneeDisplay}`));
+      if (sprintDisplay) details.push(chalk.dim(`[${sprintDisplay}]`));
+      result += ` ${details.join(' ')}`;
+    }
+  }
+  
+  return result;
 }
 
 function formatSprint(sprint: Sprint): string {
@@ -52,6 +72,21 @@ function formatUser(user: User): string {
 export async function listTickets(args: ListArgs): Promise<void> {
   const [, entityType] = args._;
   const storage = new FileStorage();
+  const verbose = args.verbose || args.v || false;
+
+  // Load user and sprint data if verbose mode is enabled
+  let users: User[] = [];
+  let sprints: Sprint[] = [];
+  
+  if (verbose) {
+    try {
+      users = await storage.getUsers();
+      sprints = await storage.getSprints();
+    } catch (error) {
+      // Continue without verbose data if it fails to load
+      console.log(chalk.dim('Warning: Could not load user/sprint data for verbose mode'));
+    }
+  }
 
   try {
     switch (entityType) {
@@ -70,7 +105,7 @@ export async function listTickets(args: ListArgs): Promise<void> {
         console.log(chalk.dim('─'.repeat(60)));
         
         filteredTickets.forEach(ticket => {
-          console.log(formatTicket(ticket));
+          console.log(formatTicket(ticket, verbose, users, sprints));
         });
         break;
       }
@@ -90,7 +125,7 @@ export async function listTickets(args: ListArgs): Promise<void> {
         console.log(chalk.dim('─'.repeat(60)));
         
         filteredTickets.forEach(ticket => {
-          console.log(formatTicket(ticket));
+          console.log(formatTicket(ticket, verbose, users, sprints));
         });
         break;
       }
@@ -153,7 +188,7 @@ export async function listTickets(args: ListArgs): Promise<void> {
           console.log(chalk.dim('ID'.padEnd(12) + 'STATUS'.padEnd(10) + 'PRI TITLE'));
           console.log(chalk.dim('─'.repeat(60)));
           filteredTickets.forEach(ticket => {
-            console.log(formatTicket(ticket));
+            console.log(formatTicket(ticket, verbose, users, sprints));
           });
         } else {
           // Group by type for other sorts
@@ -164,14 +199,14 @@ export async function listTickets(args: ListArgs): Promise<void> {
             console.log(chalk.bold(`\n📋 Tasks (${taskTickets.length})`));
             console.log(chalk.dim('ID'.padEnd(12) + 'STATUS'.padEnd(10) + 'PRI TITLE'));
             console.log(chalk.dim('─'.repeat(60)));
-            taskTickets.forEach(ticket => console.log(formatTicket(ticket)));
+            taskTickets.forEach(ticket => console.log(formatTicket(ticket, verbose, users, sprints)));
           }
           
           if (bugTickets.length > 0) {
             console.log(chalk.bold(`\n🐛 Bugs (${bugTickets.length})`));
             console.log(chalk.dim('ID'.padEnd(12) + 'STATUS'.padEnd(10) + 'PRI TITLE'));
             console.log(chalk.dim('─'.repeat(60)));
-            bugTickets.forEach(ticket => console.log(formatTicket(ticket)));
+            bugTickets.forEach(ticket => console.log(formatTicket(ticket, verbose, users, sprints)));
           }
         }
         

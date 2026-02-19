@@ -4,6 +4,7 @@ import minimist from 'minimist';
 import chalk from 'chalk';
 import { createTicket } from './commands/create.js';
 import { listTickets } from './commands/list.js';
+import { showTicket } from './commands/show.js';
 import { deleteTicket } from './commands/delete.js';
 import { updateTicketStatus } from './commands/status.js';
 import { startServer } from './commands/serve.js';
@@ -22,6 +23,7 @@ interface Args extends minimist.ParsedArgs {
 const commands = {
   create: createTicket,
   list: listTickets,
+  show: showTicket,
   delete: deleteTicket,
   status: updateTicketStatus,
   serve: startServer,
@@ -43,6 +45,7 @@ function showHelp() {
   console.log('  create <type> <title>     Create a new ticket (task, bug)');
   console.log('  new <type> <title>        Alias for create');
   console.log('  list [type]               List tickets (optionally filter by type)');
+  console.log('  show <id>                 Show detailed ticket information');
   console.log('    Options:');
   console.log('      --search, -s <term>   Search tickets by title, description, or ID');
   console.log('      --sort-by <field>     Sort by: title, status, priority, created, updated');
@@ -50,6 +53,7 @@ function showHelp() {
   console.log('      --status <status>     Filter by status: todo, progress, done');
   console.log('      --assignee <id>       Filter by assignee ID');
   console.log('      --sprint <id>         Filter by sprint ID');
+  console.log('      --verbose, -v         Show assignee and sprint names');
   console.log('  delete <id>               Delete a ticket');
   console.log('  status <id> <status>      Update ticket status (todo, progress, done)');
   console.log();
