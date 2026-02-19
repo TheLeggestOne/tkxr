@@ -64,6 +64,9 @@ function showHelp() {
   console.log();
   console.log(chalk.green('Server Commands:'));
   console.log('  serve                     Start web interface server');
+  console.log('    Options:');
+  console.log('      --port <number>       Server port (default: 8080)');
+  console.log('      --host <string>       Server host (default: localhost)');
   console.log('  mcp                       Start MCP server for AI integration');
   console.log();
   console.log(chalk.green('Examples:'));
@@ -77,7 +80,7 @@ function showHelp() {
   console.log('  tkxr list --sort-by priority --order desc');
   console.log('  tkxr list --status progress --sort-by created');
   console.log('  tkxr status task-123 done');
-  console.log('  tkxr serve');
+  console.log('  tkxr serve --port 3000');
   console.log('  tkxr mcp');
 }
 

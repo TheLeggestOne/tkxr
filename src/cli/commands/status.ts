@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import type minimist from 'minimist';
 import { FileStorage } from '../../core/storage.js';
 import type { TicketStatus } from '../../core/types.js';
+import { notifier } from '../../core/notifier.js';
 
 interface StatusArgs extends minimist.ParsedArgs {}
 
@@ -38,6 +39,9 @@ export async function updateTicketStatus(args: StatusArgs): Promise<void> {
       console.log(chalk.red(`Error: No ticket found with ID "${id}"`));
       return;
     }
+
+    // Notify web UI
+    await notifier.notifyTicketUpdated(updatedTicket);
 
     const statusColors = {
       todo: chalk.gray,

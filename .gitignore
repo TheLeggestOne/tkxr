@@ -35,6 +35,9 @@ Thumbs.db
 *.tmp
 *.temp
 
+# Runtime config
+.tkxr-server
+
 # Package manager lock files (optional - uncomment if you want to ignore)
 # package-lock.json
 # yarn.lock

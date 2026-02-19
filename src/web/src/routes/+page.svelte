@@ -61,9 +61,22 @@
 		ws.onmessage = (event) => {
 			const message = JSON.parse(event.data);
 			
-			if (message.type === 'ticket_created' || message.type === 'ticket_updated') {
+			if (message.type === 'ticket_created' || 
+				message.type === 'ticket_updated' || 
+				message.type === 'ticket_deleted' ||
+				message.type === 'sprint_created' ||
+				message.type === 'sprint_updated' ||
+				message.type === 'user_created') {
 				loadData(); // Simple refresh for now
 			}
+		};
+		
+		ws.onopen = () => {
+			console.debug('WebSocket connected');
+		};
+		
+		ws.onclose = () => {
+			console.debug('WebSocket disconnected');
 		};
 	}
 

@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import type minimist from 'minimist';
 import { FileStorage } from '../../core/storage.js';
+import { notifier } from '../../core/notifier.js';
 
 interface DeleteArgs extends minimist.ParsedArgs {
   force?: boolean;
@@ -69,6 +70,11 @@ export async function deleteTicket(args: DeleteArgs): Promise<void> {
     const deleted = await storage.deleteEntity(entityType, id);
     
     if (deleted) {
+      // Notify web UI if it's a ticket (task or bug)
+      if (entityType === 'tasks' || entityType === 'bugs') {
+        await notifier.notifyTicketDeleted(id);
+      }
+      
       console.log(chalk.green(`✓ Deleted ${entityType.slice(0, -1)}: ${id}`));
     } else {
       console.log(chalk.red(`Error: Failed to delete ${id}`));

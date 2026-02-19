@@ -3,8 +3,10 @@ import type minimist from 'minimist';
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import { promises as fs, unlinkSync } from 'fs';
 import path from 'path';
 import { FileStorage } from '../../core/storage.js';
+import { notifier } from '../../core/notifier.js';
 
 interface ServeArgs extends minimist.ParsedArgs {
   port?: number;
@@ -20,6 +22,23 @@ export async function startServer(args: ServeArgs): Promise<void> {
   const wss = new WebSocketServer({ server });
   
   const storage = new FileStorage();
+
+  // Update notifier URL for this server instance
+  const serverUrl = `http://${host}:${port}`;
+  notifier.setServerUrl(serverUrl);
+  
+  // Save server config for other CLI commands to use
+  try {
+    const configPath = path.join(process.cwd(), '.tkxr-server');
+    await fs.writeFile(configPath, JSON.stringify({ 
+      host, 
+      port, 
+      url: serverUrl 
+    }), 'utf8');
+  } catch (error) {
+    // Don't fail if we can't write config
+    console.debug('Could not save server config:', error);
+  }
 
   // Middleware
   app.use(express.json());
@@ -265,6 +284,103 @@ export async function startServer(args: ServeArgs): Promise<void> {
     }
   });
 
+  // CLI Notification endpoints - allow CLI to notify web server of changes
+  app.post('/api/cli-notifications/ticket-created', async (req, res) => {
+    try {
+      const ticket = req.body;
+      
+      // Broadcast to WebSocket clients
+      broadcast(wss, { 
+        type: 'ticket_created', 
+        data: ticket 
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to process notification' });
+    }
+  });
+
+  app.post('/api/cli-notifications/ticket-updated', async (req, res) => {
+    try {
+      const ticket = req.body;
+      
+      // Broadcast to WebSocket clients
+      broadcast(wss, { 
+        type: 'ticket_updated', 
+        data: ticket 
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to process notification' });
+    }
+  });
+
+  app.post('/api/cli-notifications/ticket-deleted', async (req, res) => {
+    try {
+      const { id } = req.body;
+      
+      // Broadcast to WebSocket clients
+      broadcast(wss, { 
+        type: 'ticket_deleted', 
+        data: { id } 
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to process notification' });
+    }
+  });
+
+  app.post('/api/cli-notifications/sprint-created', async (req, res) => {
+    try {
+      const sprint = req.body;
+      
+      // Broadcast to WebSocket clients
+      broadcast(wss, { 
+        type: 'sprint_created', 
+        data: sprint 
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to process notification' });
+    }
+  });
+
+  app.post('/api/cli-notifications/sprint-updated', async (req, res) => {
+    try {
+      const sprint = req.body;
+      
+      // Broadcast to WebSocket clients
+      broadcast(wss, { 
+        type: 'sprint_updated', 
+        data: sprint 
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to process notification' });
+    }
+  });
+
+  app.post('/api/cli-notifications/user-created', async (req, res) => {
+    try {
+      const user = req.body;
+      
+      // Broadcast to WebSocket clients
+      broadcast(wss, { 
+        type: 'user_created', 
+        data: user 
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to process notification' });
+    }
+  });
+
   // Serve web app for all other routes
   app.get('*', (req, res) => {
     res.sendFile(path.join(process.cwd(), 'dist', 'web', 'index.html'));
@@ -291,6 +407,15 @@ export async function startServer(args: ServeArgs): Promise<void> {
   // Graceful shutdown
   process.on('SIGINT', () => {
     console.log(chalk.yellow('\n⏹️  Shutting down server...'));
+    
+    // Clean up server config file
+    try {
+      const configPath = path.join(process.cwd(), '.tkxr-server');
+      unlinkSync(configPath);
+    } catch (error) {
+      // Ignore cleanup errors
+    }
+    
     server.close(() => {
       console.log(chalk.green('Server stopped'));
       process.exit(0);

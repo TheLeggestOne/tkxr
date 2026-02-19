@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import type minimist from 'minimist';
 import { FileStorage } from '../../core/storage.js';
 import type { TicketType } from '../../core/types.js';
+import { notifier } from '../../core/notifier.js';
 
 interface CreateArgs extends minimist.ParsedArgs {
   assignee?: string;
@@ -40,6 +41,9 @@ export async function createTicket(args: CreateArgs): Promise<void> {
           estimate: args.estimate ? parseInt(args.estimate) : undefined,
         });
         
+        // Notify web UI
+        await notifier.notifyTicketCreated(ticket);
+        
         console.log(chalk.green(`✓ Created ${entityType}: ${ticket.id}`));
         console.log(`  Title: ${ticket.title}`);
         console.log(`  Status: ${ticket.status}`);
@@ -54,6 +58,9 @@ export async function createTicket(args: CreateArgs): Promise<void> {
           description: args.description,
         });
         
+        // Notify web UI
+        await notifier.notifySprintCreated(sprint);
+        
         console.log(chalk.green(`✓ Created sprint: ${sprint.id}`));
         console.log(`  Name: ${sprint.name}`);
         console.log(`  Status: ${sprint.status}`);
@@ -65,6 +72,9 @@ export async function createTicket(args: CreateArgs): Promise<void> {
         // For users, 'title' is the username
         const displayName = args.description || title;
         const user = await storage.createUser(title, displayName);
+        
+        // Notify web UI
+        await notifier.notifyUserCreated(user);
         
         console.log(chalk.green(`✓ Created user: ${user.id}`));
         console.log(`  Username: ${user.username}`);
