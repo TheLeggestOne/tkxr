@@ -4,6 +4,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
+  InitializeRequestSchema,
   ListToolsRequestSchema,
   ToolSchema,
 } from '@modelcontextprotocol/sdk/types.js';
@@ -39,6 +40,20 @@ class TKXRMCPServer {
   }
 
   private setupHandlers() {
+    // Handle initialization
+    this.server.setRequestHandler(InitializeRequestSchema, async (request) => {
+      return {
+        protocolVersion: '2024-11-05',
+        capabilities: {
+          tools: {},
+        },
+        serverInfo: {
+          name: 'tkxr-mcp',
+          version: '0.1.0',
+        },
+      };
+    });
+
     // List available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
@@ -220,6 +235,42 @@ class TKXRMCPServer {
               required: ['id', 'status'],
             },
           },
+          {
+            name: 'list_comments',
+            description: 'List all comments for a specific ticket',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                ticketId: {
+                  type: 'string',
+                  description: 'Ticket ID (e.g., tas-123 or bug-456)',
+                },
+              },
+              required: ['ticketId'],
+            },
+          },
+          {
+            name: 'add_comment',
+            description: 'Add a comment to a ticket',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                ticketId: {
+                  type: 'string',
+                  description: 'Ticket ID (e.g., tas-123 or bug-456)',
+                },
+                author: {
+                  type: 'string',
+                  description: 'Author user ID or username',
+                },
+                content: {
+                  type: 'string',
+                  description: 'Comment content',
+                },
+              },
+              required: ['ticketId', 'author', 'content'],
+            },
+          },
         ],
       };
     });
@@ -248,6 +299,10 @@ class TKXRMCPServer {
             return await this.createSprint(args);
           case 'update_sprint_status':
             return await this.updateSprintStatus(args);
+          case 'list_comments':
+            return await this.listComments(args);
+          case 'add_comment':
+            return await this.addComment(args);
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -397,6 +452,32 @@ class TKXRMCPServer {
 
   private async updateSprintStatus(args: any) {
     const command = ['sprint', 'status', args.id, args.status];
+    const output = await this.runCLI(command);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: output,
+        },
+      ],
+    };
+  }
+
+  private async listComments(args: any) {
+    const command = ['comments', args.ticketId];
+    const output = await this.runCLI(command);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: output,
+        },
+      ],
+    };
+  }
+
+  private async addComment(args: any) {
+    const command = ['comments', args.ticketId, '--add', '--author', args.author, '--content', args.content];
     const output = await this.runCLI(command);
     return {
       content: [
