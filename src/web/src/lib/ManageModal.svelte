@@ -305,7 +305,7 @@
 						<div class="flex items-center gap-2">
 							{#if sprint.status === 'planning'}
 								<button
-									class="px-2 py-1 text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 rounded"
+									class="btn text-sm px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
 									on:click={() => updateSprintStatus(sprint.id, 'active')}
 									title="Start Sprint"
 								>
@@ -313,7 +313,7 @@
 								</button>
 							{:else if sprint.status === 'active'}
 								<button
-									class="px-2 py-1 text-xs bg-green-100 text-green-700 hover:bg-green-200 rounded"
+									class="btn text-sm px-3 py-1.5 bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
 									on:click={() => updateSprintStatus(sprint.id, 'completed')}
 									title="Complete Sprint"
 								>
@@ -321,7 +321,7 @@
 								</button>
 							{:else if sprint.status === 'completed'}
 								<button
-									class="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded"
+									class="btn text-sm px-3 py-1.5 bg-yellow-600 text-white hover:bg-yellow-700 dark:bg-yellow-500 dark:hover:bg-yellow-600"
 									on:click={() => updateSprintStatus(sprint.id, 'active')}
 									title="Reopen Sprint"
 								>
