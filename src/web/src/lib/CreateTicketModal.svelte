@@ -1,9 +1,13 @@
 <script lang="ts">
+export let defaultStatus: 'todo' | 'progress' | 'done' | null = null;
 	import { createEventDispatcher } from 'svelte';
 	import X from './icons/X.svelte';
 	import Bug from './icons/Bug.svelte';
 	import CheckSquare from './icons/CheckSquare.svelte';
 	import { sprintStore, userStore } from './stores';
+
+
+
 
 	const dispatch = createEventDispatcher();
 
@@ -31,7 +35,8 @@
 				description: formData.description?.trim() || undefined,
 				assignee: formData.assignee || undefined,
 				sprint: formData.sprint || undefined,
-				estimate: formData.estimate ? parseInt(formData.estimate) : undefined
+				estimate: formData.estimate ? parseInt(formData.estimate) : undefined,
+				status: defaultStatus || 'todo'
 			};
 
 			const response = await fetch('/api/tickets', {

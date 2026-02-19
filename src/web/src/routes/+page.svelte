@@ -5,7 +5,10 @@
 	import CheckSquare from '../lib/icons/CheckSquare.svelte';
 	import Clock from '../lib/icons/Clock.svelte';
 	import Done from '../lib/icons/Check.svelte';
+	import Grid from '../lib/icons/Grid.svelte';
+	import Columns from '../lib/icons/Columns.svelte';
 	import TicketCard from '../lib/TicketCard.svelte';
+	import KanbanBoard from '../lib/KanbanBoard.svelte';
 	import CreateTicketModal from '../lib/CreateTicketModal.svelte';
 	import ManageModal from '../lib/ManageModal.svelte';
 	import EditTicketModal from '../lib/EditTicketModal.svelte';
@@ -24,6 +27,8 @@
 	let searchTerm = '';
 	let sortBy = 'updated'; // updated, created, title, priority, status
 	let sortOrder = 'desc'; // asc, desc
+	let viewMode = 'grid'; // 'grid' or 'kanban'
+	let createModalDefaultStatus: 'todo' | 'progress' | 'done' | null = null;
 	
 	onMount(() => {
 		loadData();
@@ -107,14 +112,18 @@
 				if (!searchableText.includes(term)) return false;
 			}
 			
-			// Tab filter
-			if (activeTab === 'all-open') return ticket.status !== 'done';
-			if (activeTab === 'open-tasks') return ticket.type === 'task' && ticket.status !== 'done';
-			if (activeTab === 'open-bugs') return ticket.type === 'bug' && ticket.status !== 'done';
-			if (activeTab === 'todo') return ticket.status === 'todo';
-			if (activeTab === 'progress') return ticket.status === 'progress';
-			if (activeTab === 'done') return ticket.status === 'done';
-			if (activeTab === 'all') return true;
+			// Tab filter (only applied in grid view)
+			if (viewMode === 'grid') {
+				if (activeTab === 'all-open') return ticket.status !== 'done';
+				if (activeTab === 'open-tasks') return ticket.type === 'task' && ticket.status !== 'done';
+				if (activeTab === 'open-bugs') return ticket.type === 'bug' && ticket.status !== 'done';
+				if (activeTab === 'todo') return ticket.status === 'todo';
+				if (activeTab === 'progress') return ticket.status === 'progress';
+				if (activeTab === 'done') return ticket.status === 'done';
+				if (activeTab === 'all') return true;
+			}
+			
+			// Kanban view shows all tickets (no tab filter)
 			return true;
 		})
 		.sort((a, b) => {
@@ -261,6 +270,31 @@
 					</select>
 				</div>
 				
+				<!-- View Toggle -->
+				<div class="relative">
+					<label class="label">
+						View Mode
+					</label>
+					<div class="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+						<button 
+							class="view-toggle-btn {viewMode === 'grid' ? 'active' : ''}"
+							on:click={() => viewMode = 'grid'}
+							title="Grid View"
+						>
+							<Grid size={16} />
+							<span class="hidden sm:inline">Grid</span>
+						</button>
+						<button 
+							class="view-toggle-btn {viewMode === 'kanban' ? 'active' : ''}"  
+							on:click={() => viewMode = 'kanban'}
+							title="Kanban Board"
+						>
+							<Columns size={16} />
+							<span class="hidden sm:inline">Board</span>
+						</button>
+					</div>
+				</div>
+				
 				<div class="flex gap-2">
 					<button 
 						class="btn btn-primary flex items-center gap-2"
@@ -371,9 +405,10 @@
 		</button>
 	</div>
 
-	<!-- Tabs -->
-	<div class="mb-6">
-		<nav class="flex space-x-1">
+	<!-- Tabs (only shown in grid view) -->
+	{#if viewMode === 'grid'}
+		<div class="mb-6">
+			<nav class="flex space-x-1">
 			{#each [
 				{ id: 'all-open', label: 'All Open', count: sprintFilteredTickets.filter(t => t.status !== 'done').length },
 				{ id: 'open-tasks', label: 'Open Tasks', count: sprintFilteredTickets.filter(t => t.type === 'task' && t.status !== 'done').length },
@@ -400,28 +435,48 @@
 			{/each}
 		</nav>
 	</div>
+	{/if}
 
-	<!-- Tickets Grid -->
-	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-		{#each filteredTickets as ticket (ticket.id)}
-			<TicketCard {ticket} on:updated={loadData} on:edit={() => handleEditTicket(ticket)} on:comments={() => handleCommentsTicket(ticket)} />
-		{/each}
-		
-		{#if filteredTickets.length === 0}
-			<div class="col-span-full text-center py-12">
-				<div class="text-gray-400 mb-4">
-					<CheckSquare size={48} class="mx-auto" />
+	<!-- Tickets Display -->
+	{#if viewMode === 'kanban'}
+		<!-- Kanban Board View -->
+		<KanbanBoard 
+			tickets={filteredTickets}
+			on:updated={loadData}
+			on:edit={(e) => handleEditTicket(e.detail)}
+			on:comments={(e) => handleCommentsTicket(e.detail)}
+			on:createTicket={(e) => {
+				createModalDefaultStatus = e.detail.status;
+				showCreateModal = true;
+			}}
+		/>
+	{:else}
+		<!-- Grid View -->
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+			{#each filteredTickets as ticket (ticket.id)}
+				<TicketCard {ticket} on:updated={loadData} on:edit={() => handleEditTicket(ticket)} on:comments={() => handleCommentsTicket(ticket)} />
+			{/each}
+			
+			{#if filteredTickets.length === 0}
+				<div class="col-span-full text-center py-12">
+					<div class="text-gray-400 mb-4">
+						<CheckSquare size={48} class="mx-auto" />
+					</div>
+					<p class="text-gray-600 dark:text-gray-400 text-lg">No tickets found</p>
+					<p class="text-gray-500">Create your first ticket to get started</p>
 				</div>
-				<p class="text-gray-600 dark:text-gray-400 text-lg">No tickets found</p>
-				<p class="text-gray-500">Create your first ticket to get started</p>
-			</div>
-		{/if}
-	</div>
+			{/if}
+		</div>
+	{/if}
 
 	<!-- Create Ticket Modal -->
 	{#if showCreateModal}
 		<CreateTicketModal 
-			on:close={() => showCreateModal = false}
+			defaultStatus={createModalDefaultStatus}
+			on:close={() => { 
+				showCreateModal = false; 
+				createModalDefaultStatus = null;
+			}}
 			on:created={loadData}
 		/>
 	{/if}
@@ -452,3 +507,42 @@
 		/>
 	{/if}
 </div>
+
+<style>
+	.view-toggle-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.375rem;
+		transition: all 200ms ease;
+		color: rgb(75, 85, 99);
+		cursor: pointer;
+		border: none;
+		background: transparent;
+		font-size: 0.875rem;
+	}
+	
+	:global(.dark) .view-toggle-btn {
+		color: rgb(156, 163, 175);
+	}
+	
+	.view-toggle-btn:hover {
+		color: rgb(31, 41, 55);
+	}
+	
+	:global(.dark) .view-toggle-btn:hover {
+		color: rgb(229, 231, 235);
+	}
+	
+	.view-toggle-btn.active {
+		background: white;
+		color: rgb(17, 24, 39);
+		box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+	}
+	
+	:global(.dark) .view-toggle-btn.active {
+		background: rgb(75, 85, 99);
+		color: white;
+	}
+</style>
