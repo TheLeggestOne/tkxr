@@ -7,6 +7,8 @@
 	import Done from '../lib/icons/Check.svelte';
 	import Grid from '../lib/icons/Grid.svelte';
 	import Columns from '../lib/icons/Columns.svelte';
+	import Menu from '../lib/icons/Menu.svelte';
+	import X from '../lib/icons/X.svelte';
 	import TicketCard from '../lib/TicketCard.svelte';
 	import KanbanBoard from '../lib/KanbanBoard.svelte';
 	import CreateTicketModal from '../lib/CreateTicketModal.svelte';
@@ -29,6 +31,7 @@
 	let sortOrder = 'desc'; // asc, desc
 	let viewMode = 'grid'; // 'grid' or 'kanban'
 	let createModalDefaultStatus: 'todo' | 'progress' | 'done' | null = null;
+	let showDrawer = false;
 	
 	onMount(() => {
 		loadData();
@@ -213,68 +216,9 @@
 			</div>
 			<div class="flex items-center gap-4">
 				<DarkModeToggle />
-				<!-- Search Input -->
-				<div class="relative">
-					<label for="search" class="label">
-						Search Tickets
-					</label>
-					<input 
-						id="search"
-						type="text"
-						placeholder="Search by title, description, or ID..."
-						bind:value={searchTerm}
-						class="input w-64"
-					/>
-				</div>
-
-				<!-- Sort Options -->
-				<div class="relative">
-					<label for="sort-by" class="label">
-						Sort by
-					</label>
-					<div class="flex gap-2">
-						<select 
-							id="sort-by"
-							bind:value={sortBy}
-							class="select">
-							<option value="updated">Updated</option>
-							<option value="created">Created</option>
-							<option value="title">Title</option>
-							<option value="priority">Priority</option>
-							<option value="status">Status</option>
-						</select>
-						<select 
-							bind:value={sortOrder}
-							class="select">
-							<option value="asc">A-Z</option>
-							<option value="desc">Z-A</option>
-						</select>
-					</div>
-				</div>
-
-				<!-- Sprint Filter Dropdown -->
-				<div class="relative">
-					<label for="sprint-filter" class="label">
-						Filter by Sprint
-					</label>
-					<select 
-						id="sprint-filter"
-						bind:value={selectedSprint}
-						class="select"
-					>
-						<option value="all">All Tickets</option>
-						<option value="no-sprint">No Sprint</option>
-						{#each $sprintStore.filter(s => s.status !== 'completed') as sprint}
-							<option value={sprint.id}>{sprint.name}</option>
-						{/each}
-					</select>
-				</div>
 				
 				<!-- View Toggle -->
 				<div class="relative">
-					<label class="label">
-						View Mode
-					</label>
 					<div class="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
 						<button 
 							class="view-toggle-btn {viewMode === 'grid' ? 'active' : ''}"
@@ -295,20 +239,21 @@
 					</div>
 				</div>
 				
-				<div class="flex gap-2">
-					<button 
-						class="btn btn-primary flex items-center gap-2"
-						on:click={() => showCreateModal = true}
-					>
-						<Plus size={20} />
-						New Ticket
-					</button>
+				<!-- Hamburger Menu Button -->
+				<div class="relative">
 					<button 
 						class="btn btn-secondary flex items-center gap-2"
-						on:click={() => showManageModal = true}
+						on:click={() => showDrawer = true}
+						title="Search and Filters"
 					>
-						Manage
+						<Menu size={20} />
+						<span class="hidden sm:inline">Options</span>
 					</button>
+					
+					<!-- Search Active Badge -->
+					{#if searchTerm}
+						<div class="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+					{/if}
 				</div>
 			</div>
 		</div>
@@ -508,6 +453,115 @@
 	{/if}
 </div>
 
+<!-- Drawer Overlay -->
+{#if showDrawer}
+	<div class="fixed inset-0 bg-black bg-opacity-50 z-40" on:click={() => showDrawer = false} on:keydown={(e) => e.key === 'Escape' && (showDrawer = false)}></div>
+{/if}
+
+<!-- Drawer -->
+<div class="fixed top-0 right-0 h-full w-80 bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out z-50 {showDrawer ? 'translate-x-0' : 'translate-x-full'}">
+	<div class="p-6">
+		<!-- Drawer Header -->
+		<div class="flex items-center justify-between mb-6">
+			<h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Search & Filters</h2>
+			<button 
+				class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+				on:click={() => showDrawer = false}
+			>
+				<X size={20} />
+			</button>
+		</div>
+
+		<!-- Search Input -->
+		<div class="mb-6">
+			<div class="flex items-center justify-between mb-2">
+				<label for="drawer-search" class="label">
+					Search Tickets
+				</label>
+				{#if searchTerm}
+					<button
+						class="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+						on:click={() => searchTerm = ''}
+					>
+						Clear
+					</button>
+				{/if}
+			</div>
+			<input 
+				id="drawer-search"
+				type="text"
+				placeholder="Search by title, description, or ID..."
+				bind:value={searchTerm}
+				class="input w-full"
+			/>
+		</div>
+
+		<!-- Sort Options -->
+		<div class="mb-6">
+			<label for="drawer-sort-by" class="label">
+				Sort by
+			</label>
+			<div class="space-y-2">
+				<select 
+					id="drawer-sort-by"
+					bind:value={sortBy}
+					class="select w-full">
+					<option value="updated">Updated</option>
+					<option value="created">Created</option>
+					<option value="title">Title</option>
+					<option value="priority">Priority</option>
+					<option value="status">Status</option>
+				</select>
+				<select 
+					bind:value={sortOrder}
+					class="select w-full">
+					<option value="asc">Ascending</option>
+					<option value="desc">Descending</option>
+				</select>
+			</div>
+		</div>
+
+		<!-- Sprint Filter -->
+		<div class="mb-6">
+			<label for="drawer-sprint-filter" class="label">
+				Filter by Sprint
+			</label>
+			<select 
+				id="drawer-sprint-filter"
+				bind:value={selectedSprint}
+				class="select w-full"
+			>
+				<option value="all">All Tickets</option>
+				<option value="no-sprint">No Sprint</option>
+				{#each $sprintStore.filter(s => s.status !== 'completed') as sprint}
+					<option value={sprint.id}>{sprint.name}</option>
+				{/each}
+			</select>
+		</div>
+
+		<!-- Manage Button -->
+		
+		<div>
+			<h2 class="flex items-center justify-between">Users & Sprints</h2>
+			<button 
+			class="btn btn-secondary w-full flex items-center justify-center gap-2"
+			on:click={() => { showManageModal = true; showDrawer = false; }}
+		>
+			Manage
+		</button>
+		</div>
+	</div>
+</div>
+
+<!-- Floating Action Button -->
+<button 
+	class="fab"
+	on:click={() => showCreateModal = true}
+	title="Create New Ticket"
+>
+	<Plus size={24} />
+</button>
+
 <style>
 	.view-toggle-btn {
 		display: flex;
@@ -544,5 +598,35 @@
 	:global(.dark) .view-toggle-btn.active {
 		background: rgb(75, 85, 99);
 		color: white;
+	}
+
+	/* Floating Action Button */
+	.fab {
+		position: fixed;
+		bottom: 2rem;
+		right: 2rem;
+		width: 3.5rem;
+		height: 3.5rem;
+		border-radius: 50%;
+		background: rgb(59, 130, 246);
+		color: white;
+		border: none;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+		transition: all 200ms ease;
+		z-index: 30;
+	}
+
+	.fab:hover {
+		background: rgb(37, 99, 235);
+		transform: scale(1.1);
+		box-shadow: 0 6px 16px rgba(59, 130, 246, 0.6);
+	}
+
+	.fab:active {
+		transform: scale(0.95);
 	}
 </style>

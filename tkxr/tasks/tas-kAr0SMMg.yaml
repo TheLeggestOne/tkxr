@@ -1,9 +1,9 @@
 id: tas-kAr0SMMg
 type: task
 title: Clean up and align UI
-status: todo
+status: done
 createdAt: 2026-02-19T20:28:00.628Z
-updatedAt: 2026-02-19T20:28:00.628Z
+updatedAt: 2026-02-19T22:39:58.759Z
 description: |-
   Add padding above progress bar
   align search, filter, and ticket and manage buttons (currently labeled inputs lower than the buttons and it looks off.
