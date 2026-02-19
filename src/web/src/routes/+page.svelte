@@ -9,6 +9,7 @@
 	import CreateTicketModal from '../lib/CreateTicketModal.svelte';
 	import ManageModal from '../lib/ManageModal.svelte';
 	import EditTicketModal from '../lib/EditTicketModal.svelte';
+	import DarkModeToggle from '../lib/DarkModeToggle.svelte';
 	import { ticketStore, sprintStore, userStore } from '../lib/stores';
 
 	let showCreateModal = false;
@@ -162,13 +163,14 @@
 	<header class="mb-8">
 		<div class="flex items-center justify-between">
 			<div>
-				<h1 class="text-3xl font-bold text-gray-900">tkxr</h1>
-				<p class="text-gray-600">In-repo ticket management</p>
+				<h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">tkxr</h1>
+				<p class="text-gray-600 dark:text-gray-400">In-repo ticket management</p>
 			</div>
 			<div class="flex items-center gap-4">
+				<DarkModeToggle />
 				<!-- Search Input -->
 				<div class="relative">
-					<label for="search" class="block text-sm font-medium text-gray-700 mb-1">
+					<label for="search" class="label">
 						Search Tickets
 					</label>
 					<input 
@@ -176,21 +178,20 @@
 						type="text"
 						placeholder="Search by title, description, or ID..."
 						bind:value={searchTerm}
-						class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-64"
+						class="input w-64"
 					/>
 				</div>
 
 				<!-- Sort Options -->
 				<div class="relative">
-					<label for="sort-by" class="block text-sm font-medium text-gray-700 mb-1">
+					<label for="sort-by" class="label">
 						Sort by
 					</label>
 					<div class="flex gap-2">
 						<select 
 							id="sort-by"
 							bind:value={sortBy}
-							class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-						>
+							class="select">
 							<option value="updated">Updated</option>
 							<option value="created">Created</option>
 							<option value="title">Title</option>
@@ -199,8 +200,7 @@
 						</select>
 						<select 
 							bind:value={sortOrder}
-							class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-						>
+							class="select">
 							<option value="asc">A-Z</option>
 							<option value="desc">Z-A</option>
 						</select>
@@ -209,13 +209,13 @@
 
 				<!-- Sprint Filter Dropdown -->
 				<div class="relative">
-					<label for="sprint-filter" class="block text-sm font-medium text-gray-700 mb-1">
+					<label for="sprint-filter" class="label">
 						Filter by Sprint
 					</label>
 					<select 
 						id="sprint-filter"
 						bind:value={selectedSprint}
-						class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						class="select"
 					>
 						<option value="all">All Tickets</option>
 						<option value="no-sprint">No Sprint</option>
@@ -248,48 +248,48 @@
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
 		<div class="card">
 			<div class="flex items-center gap-3">
-				<div class="p-2 bg-blue-100 rounded-lg">
-					<CheckSquare class="w-6 h-6 text-blue-600" />
+				<div class="p-2 bg-blue-100 dark:bg-blue-800 rounded-lg">
+					<CheckSquare class="w-6 h-6 text-blue-600 dark:text-blue-300" />
 				</div>
 				<div>
 					<p class="text-2xl font-bold">{sprintFilteredTickets.length}</p>
-					<p class="text-gray-600">Total Tickets</p>
+					<p class="text-gray-600 dark:text-gray-400">Total Tickets</p>
 				</div>
 			</div>
 		</div>
 
 		<div class="card">
 			<div class="flex items-center gap-3">
-				<div class="p-2 bg-red-100 rounded-lg">
-					<Bug class="w-6 h-6 text-red-600" />
+				<div class="p-2 bg-red-100 dark:bg-red-800 rounded-lg">
+					<Bug class="w-6 h-6 text-red-600 dark:text-red-300" />
 				</div>
 				<div>
 					<p class="text-2xl font-bold">{sprintFilteredTickets.filter(t => t.type === 'bug').length}</p>
-					<p class="text-gray-600">Bugs</p>
+					<p class="text-gray-600 dark:text-gray-400">Bugs</p>
 				</div>
 			</div>
 		</div>
 
 		<div class="card">
 			<div class="flex items-center gap-3">
-				<div class="p-2 bg-yellow-100 rounded-lg">
-					<Clock class="w-6 h-6 text-yellow-600" />
+				<div class="p-2 bg-yellow-100 dark:bg-yellow-800 rounded-lg">
+					<Clock class="w-6 h-6 text-yellow-600 dark:text-yellow-300" />
 				</div>
 				<div>
 					<p class="text-2xl font-bold">{sprintFilteredTickets.filter(t => t.status === 'progress').length}</p>
-					<p class="text-gray-600">In Progress</p>
+					<p class="text-gray-600 dark:text-gray-400">In Progress</p>
 				</div>
 			</div>
 		</div>
 
 		<div class="card">
 			<div class="flex items-center gap-3">
-				<div class="p-2 bg-green-100 rounded-lg">
-					<Done class="w-6 h-6 text-green-600" />
+				<div class="p-2 bg-green-100 dark:bg-green-800 rounded-lg">
+					<Done class="w-6 h-6 text-green-600 dark:text-green-300" />
 				</div>
 				<div>
 					<p class="text-2xl font-bold">{sprintFilteredTickets.filter(t => t.status === 'done').length}</p>
-					<p class="text-gray-600">Completed</p>
+					<p class="text-gray-600 dark:text-gray-400">Completed</p>
 				</div>
 			</div>
 		</div>
@@ -309,13 +309,13 @@
 				<button
 					class="px-4 py-2 rounded-lg text-sm font-medium transition-colors
 						{activeTab === tab.id 
-							? 'bg-blue-100 text-blue-700 border border-blue-200' 
-							: 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'}"
+						? 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700' 
+						: 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700'}"
 					on:click={() => activeTab = tab.id}
 				>
 					{tab.label}
 					{#if tab.count > 0}
-						<span class="ml-2 px-2 py-0.5 bg-gray-200 {activeTab === tab.id ? 'bg-blue-200' : ''} rounded-full text-xs">
+						<span class="ml-2 px-2 py-0.5 bg-gray-200 {activeTab === tab.id ? 'bg-blue-200 dark:bg-blue-800' : 'dark:bg-gray-600'} rounded-full text-xs">
 							{tab.count}
 						</span>
 					{/if}
@@ -335,7 +335,7 @@
 				<div class="text-gray-400 mb-4">
 					<CheckSquare size={48} class="mx-auto" />
 				</div>
-				<p class="text-gray-600 text-lg">No tickets found</p>
+				<p class="text-gray-600 dark:text-gray-400 text-lg">No tickets found</p>
 				<p class="text-gray-500">Create your first ticket to get started</p>
 			</div>
 		{/if}

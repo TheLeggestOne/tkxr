@@ -29,16 +29,16 @@
 	};
 
 	const statusConfig = {
-		todo: { icon: Clock, color: 'text-gray-600', bg: 'bg-gray-100', label: 'To Do' },
-		progress: { icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-100', label: 'In Progress' },
-		done: { icon: Done, color: 'text-green-600', bg: 'bg-green-100', label: 'Done' }
+		todo: { icon: Clock, color: 'text-gray-600 dark:text-gray-300', bg: 'bg-gray-100 dark:bg-gray-700', label: 'To Do' },
+		progress: { icon: Clock, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900', label: 'In Progress' },
+		done: { icon: Done, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900', label: 'Done' }
 	};
 
 	const priorityConfig = {
-		low: { color: 'text-blue-600', bg: 'bg-blue-100' },
-		medium: { color: 'text-yellow-600', bg: 'bg-yellow-100' },
-		high: { color: 'text-orange-600', bg: 'bg-orange-100' },
-		critical: { color: 'text-red-600', bg: 'bg-red-100' }
+		low: { color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900' },
+		medium: { color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900' },
+		high: { color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900' },
+		critical: { color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900' }
 	};
 
 	async function updateStatus(newStatus: Ticket['status']) {
@@ -86,9 +86,9 @@
 		<div class="flex items-center gap-2">
 			<TypeIcon 
 				size={18} 
-				class={ticket.type === 'bug' ? 'text-red-600' : 'text-blue-600'} 
+				class={ticket.type === 'bug' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'} 
 			/>
-			<span class="text-sm font-mono text-gray-500">{ticket.id}</span>
+			<span class="text-sm font-mono text-gray-500 dark:text-gray-400">{ticket.id}</span>
 		</div>
 		
 		{#if ticket.priority}
@@ -100,19 +100,19 @@
 
 	<!-- Title & Actions -->
 	<div class="flex items-start justify-between mb-2">
-		<h3 class="font-semibold text-gray-900 flex-1 line-clamp-2">
+		<h3 class="font-semibold text-gray-900 dark:text-gray-100 flex-1 line-clamp-2">
 			{ticket.title}
 		</h3>
 		<div class="flex gap-1 ml-2">
 			<button 
-				class="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+				class="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
 				title="Edit ticket"
 				on:click={() => dispatch('edit')}
 			>
 				<Edit size={14} />
 			</button>
 			<button 
-				class="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+				class="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
 				title="Delete ticket"
 				on:click={deleteTicket}
 			>
@@ -123,7 +123,7 @@
 
 	<!-- Description -->
 	{#if ticket.description}
-		<p class="text-sm text-gray-600 mb-3 line-clamp-2">
+		<p class="text-sm text-gray-600 dark:text-gray-300 mb-3 line-clamp-2">
 			{ticket.description}
 		</p>
 	{/if}
@@ -131,21 +131,21 @@
 	<!-- Metadata -->
 	<div class="space-y-2 mb-4">
 		{#if ticket.assignee}
-			<div class="flex items-center gap-2 text-sm text-gray-600">
+			<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
 				<User size={16} />
 				<span>{getUserDisplayName(ticket.assignee)}</span>
 			</div>
 		{/if}
 
 		{#if ticket.sprint}
-			<div class="flex items-center gap-2 text-sm text-gray-600">
+			<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
 				<Calendar size={16} />
 				<span>{getSprintName(ticket.sprint)}</span>
 			</div>
 		{/if}
 
 		{#if ticket.estimate}
-			<div class="text-sm text-gray-600">
+			<div class="text-sm text-gray-600 dark:text-gray-300">
 				Estimate: {ticket.estimate} {ticket.estimate === 1 ? 'point' : 'points'}
 			</div>
 		{/if}
