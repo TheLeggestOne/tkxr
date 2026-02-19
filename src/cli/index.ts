@@ -16,6 +16,7 @@ import { manageUser } from './commands/user.js';
 import { listSprints } from './commands/sprints.js';
 import { manageSprint } from './commands/sprint.js';
 import { startMCPServer } from './commands/mcp.js';
+import { manageComments } from './commands/comments.js';
 
 interface Args extends minimist.ParsedArgs {
   _: string[];
@@ -34,6 +35,7 @@ const commands = {
   user: manageUser,
   sprints: listSprints,
   sprint: manageSprint,
+  comments: manageComments,
   mcp: startMCPServer,
   new: createTicket, // Alias for create
 };
@@ -59,6 +61,10 @@ function showHelp() {
   console.log('      --verbose, -v         Show assignee and sprint names');
   console.log('  delete <id>               Delete a ticket');
   console.log('  status <id> <status>      Update ticket status (todo, progress, done)');
+  console.log('  comments <id>             List comments for a ticket');
+  console.log('  comments <id> --add       Add a comment to a ticket');
+  console.log('    --author <author-id>    Author of the comment (user ID or username)');
+  console.log('    --content <text>        Comment content');
   console.log();
   console.log(chalk.green('User Commands:'));
   console.log('  users                     List all users');
@@ -87,6 +93,8 @@ function showHelp() {
   console.log('  tkxr list --sort-by priority --order desc');
   console.log('  tkxr list --status progress --sort-by created');
   console.log('  tkxr status task-123 done');
+  console.log('  tkxr comments tas-123');
+  console.log('  tkxr comments tas-123 --add --author johndoe --content "Fixed the issue"');
   console.log('  tkxr serve --port 3000');
   console.log('  tkxr mcp');
 }
