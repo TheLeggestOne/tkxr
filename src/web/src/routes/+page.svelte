@@ -26,6 +26,7 @@
 	let commentsTicket = null;
 	let activeTab = 'all-open';
 	let selectedSprint = 'all'; // all, no-sprint, or sprint ID
+	let selectedUser = 'all'; // all, or user ID
 	let searchTerm = '';
 	let sortBy = 'updated'; // updated, created, title, priority, status
 	let sortOrder = 'desc'; // asc, desc
@@ -44,8 +45,7 @@
 			if (saved) {
 				const settings = JSON.parse(saved);
 				activeTab = settings.activeTab || 'all-open';
-				selectedSprint = settings.selectedSprint || 'all';
-				searchTerm = settings.searchTerm || '';
+				selectedSprint = settings.selectedSprint || 'all';			selectedUser = settings.selectedUser || 'all';				searchTerm = settings.searchTerm || '';
 				sortBy = settings.sortBy || 'updated';
 				sortOrder = settings.sortOrder || 'desc';
 				viewMode = settings.viewMode || 'grid';
@@ -68,6 +68,7 @@
 			const settings = {
 				activeTab,
 				selectedSprint,
+				selectedUser,
 				searchTerm,
 				sortBy,
 				sortOrder,
@@ -89,6 +90,7 @@
 			// Reset to default values
 			activeTab = 'all-open';
 			selectedSprint = 'all';
+			selectedUser = 'all';
 			searchTerm = '';
 			sortBy = 'updated';
 			sortOrder = 'desc';
@@ -99,7 +101,7 @@
 	}
 
 	// Reactive statements to save settings when they change (but not during initial load)
-	$: if (settingsLoaded && typeof window !== 'undefined' && (activeTab, selectedSprint, searchTerm, sortBy, sortOrder, viewMode, true)) {
+	$: if (settingsLoaded && typeof window !== 'undefined' && (activeTab, selectedSprint, selectedUser, searchTerm, sortBy, sortOrder, viewMode, true)) {
 		saveUISettings();
 	}
 	
@@ -179,6 +181,9 @@
 			if (selectedSprint === 'no-sprint' && ticket.sprint) return false;
 			if (selectedSprint !== 'all' && selectedSprint !== 'no-sprint' && ticket.sprint !== selectedSprint) return false;
 			
+			// User filter
+			if (selectedUser !== 'all' && ticket.assignee !== selectedUser) return false;
+			
 			// Search filter
 			if (searchTerm) {
 				const term = searchTerm.toLowerCase();
@@ -238,10 +243,11 @@
 			return sortOrder === 'desc' ? -compareValue : compareValue;
 		});
 
-	// Calculate stats based on filtered tickets by sprint
+	// Calculate stats based on filtered tickets by sprint and user
 	$: sprintFilteredTickets = $ticketStore.filter(ticket => {
 		if (selectedSprint === 'no-sprint' && ticket.sprint) return false;
 		if (selectedSprint !== 'all' && selectedSprint !== 'no-sprint' && ticket.sprint !== selectedSprint) return false;
+		if (selectedUser !== 'all' && ticket.assignee !== selectedUser) return false;
 		return true;
 	});
 
@@ -321,8 +327,8 @@
 						<span class="hidden sm:inline">Options</span>
 					</button>
 					
-					<!-- Search Active Badge -->
-					{#if searchTerm}
+					<!-- Filter Active Badge -->
+					{#if searchTerm || selectedUser !== 'all'}
 						<div class="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white dark:border-gray-800"></div>
 					{/if}
 				</div>
@@ -489,6 +495,7 @@
 	{#if showCreateModal}
 		<CreateTicketModal 
 			defaultStatus={createModalDefaultStatus}
+			defaultAssignee={selectedUser !== 'all' ? selectedUser : ''}
 			on:close={() => { 
 				showCreateModal = false; 
 				createModalDefaultStatus = null;
@@ -519,6 +526,7 @@
 		<CommentsModal 
 			ticket={commentsTicket}
 			isOpen={showCommentsModal}
+			defaultAuthor={selectedUser !== 'all' ? selectedUser : ''}
 			on:close={() => { showCommentsModal = false; commentsTicket = null; }}
 		/>
 	{/if}
@@ -606,6 +614,23 @@
 				<option value="no-sprint">No Sprint</option>
 				{#each $sprintStore.filter(s => s.status !== 'completed') as sprint}
 					<option value={sprint.id}>{sprint.name}</option>
+				{/each}
+			</select>
+		</div>
+
+		<!-- User Filter -->
+		<div class="mb-6">
+			<label for="drawer-user-filter" class="label">
+				Current User
+			</label>
+			<select 
+				id="drawer-user-filter"
+				bind:value={selectedUser}
+				class="select w-full"
+			>
+				<option value="all">All Users</option>
+				{#each $userStore as user}
+					<option value={user.id}>{user.displayName} (@{user.username})</option>
 				{/each}
 			</select>
 		</div>

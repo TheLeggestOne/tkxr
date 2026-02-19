@@ -1,0 +1,11 @@
+id: bug-Tg-5H4lg
+type: bug
+title: Deleting ticket leaves orphan comments
+status: todo
+createdAt: 2026-02-19T23:03:42.672Z
+updatedAt: 2026-02-19T23:03:42.672Z
+description: We need to delete related comments when deleting a ticket
+assignee: use-JTYCH2se
+sprint: spr-hDifgOv0
+priority: medium
+estimate: 2

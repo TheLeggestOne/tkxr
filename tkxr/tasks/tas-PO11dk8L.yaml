@@ -1,9 +1,9 @@
 id: tas-PO11dk8L
 type: task
 title: '"My" user'
-status: todo
+status: done
 createdAt: 2026-02-19T20:19:57.083Z
-updatedAt: 2026-02-19T22:53:36.208Z
+updatedAt: 2026-02-19T22:59:59.948Z
 description: >-
   Allow selection of current user from a dropdown. Default assign this user when creating new tickets as assignee or
   posting comments

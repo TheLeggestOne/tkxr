@@ -1,5 +1,6 @@
 <script lang="ts">
 export let defaultStatus: 'todo' | 'progress' | 'done' | null = null;
+export let defaultAssignee = ''; // Default user ID to assign new tickets to
 	import { createEventDispatcher } from 'svelte';
 	import X from './icons/X.svelte';
 	import Bug from './icons/Bug.svelte';
@@ -15,7 +16,7 @@ export let defaultStatus: 'todo' | 'progress' | 'done' | null = null;
 		type: 'task' as 'task' | 'bug',
 		title: '',
 		description: '',
-		assignee: '',
+		assignee: defaultAssignee || '', // Use defaultAssignee if provided
 		sprint: '',
 		priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
 		estimate: ''

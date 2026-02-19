@@ -8,6 +8,7 @@
 
 	export let ticket: Ticket;
 	export let isOpen = false;
+	export let defaultAuthor = ''; // Default user ID to use for new comments
 
 	const dispatch = createEventDispatcher();
 
@@ -105,9 +106,9 @@
 	// Load comments when modal opens
 	$: if (isOpen) {
 		loadComments();
-		// Set default author to first user if not already set
+		// Set default author: use defaultAuthor prop if provided, otherwise first user
 		if (!selectedAuthor && $userStore.length > 0) {
-			selectedAuthor = $userStore[0].id;
+			selectedAuthor = defaultAuthor || $userStore[0].id;
 		}
 	}
 </script>
