@@ -1,9 +1,9 @@
 id: tas-QEtr9PCO
 type: task
 title: Rename default ticket dir
-status: todo
+status: done
 createdAt: 2026-02-19T18:15:03.744Z
-updatedAt: 2026-02-19T18:15:03.744Z
+updatedAt: 2026-02-19T21:15:39.386Z
 description: Instead of /tickets/ use a default dir name of /tkxr/ to avoid collisions with other systems.
 assignee: use-JTYCH2se
 sprint: spr-hDifgOv0

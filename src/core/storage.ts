@@ -5,7 +5,7 @@ import { nanoid } from 'nanoid';
 import type { Ticket, Sprint, User, TicketType, TicketComment } from './types.js';
 
 export class FileStorage {
-  constructor(private basePath: string = './tickets') {}
+  constructor(private basePath: string = './tkxr') {}
 
   private getEntityPath(type: string, id?: string): string {
     const basePath = path.resolve(this.basePath);
