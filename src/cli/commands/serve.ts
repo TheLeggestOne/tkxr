@@ -154,6 +154,12 @@ export async function startServer(args: ServeArgs): Promise<void> {
     try {
       const { id } = req.params;
       
+      // First, delete all comments associated with this ticket
+      const comments = await storage.getComments(id);
+      for (const comment of comments) {
+        await storage.deleteComment(comment.id);
+      }
+      
       // Try to delete from tasks first, then bugs
       let deleted = await storage.deleteEntity('tasks', id);
       if (!deleted) {

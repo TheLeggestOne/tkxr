@@ -67,6 +67,15 @@ export async function deleteTicket(args: DeleteArgs): Promise<void> {
     }
 
     // Perform deletion
+    if (entityType === 'tasks' || entityType === 'bugs') {
+      // For tickets, first delete all associated comments
+      const comments = await storage.getComments(id);
+      for (const comment of comments) {
+        await storage.deleteComment(comment.id);
+      }
+      console.log(chalk.dim(`  Deleted ${comments.length} associated comment(s)...`));
+    }
+    
     const deleted = await storage.deleteEntity(entityType, id);
     
     if (deleted) {
