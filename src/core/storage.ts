@@ -1,34 +1,19 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import yaml from 'js-yaml';
 import { nanoid } from 'nanoid';
-import type { Ticket, Sprint, User, TicketType, TicketComment, ProjectData } from './types.js';
+import type { Ticket, Sprint, User, TicketType, TicketComment } from './types.js';
 
-/**
- * TKXR Project Storage - Single-file YAML storage for all project data
- */
 export class ProjectStorage {
-  private projectPath: string;
-  private data: ProjectData;
+  private ticketsDir: string;
+  private commentsDir: string;
+  private sprintsPath: string;
+  private usersPath: string;
 
-  constructor(projectPath: string = './tkxr/project.yaml') {
-    this.projectPath = path.resolve(projectPath);
-    this.data = this.getDefaultProjectData();
-  }
-
-  private getDefaultProjectData(): ProjectData {
-    return {
-      version: '1.0',
-      project: {
-        name: 'TKXR Project',
-        created: new Date(),
-        updated: new Date(),
-      },
-      users: [],
-      sprints: [],
-      tickets: [],
-      comments: []
-    };
+  constructor(basePath: string = './tkxr') {
+    this.ticketsDir = path.resolve(basePath, 'tickets');
+    this.commentsDir = path.resolve(basePath, 'comments');
+    this.sprintsPath = path.resolve(basePath, 'sprints.json');
+    this.usersPath = path.resolve(basePath, 'users.json');
   }
 
   private generateId(type: string): string {
@@ -37,65 +22,7 @@ export class ProjectStorage {
     return `${prefix}-${id}`;
   }
 
-  async loadProject(): Promise<void> {
-    try {
-      // Ensure tkxr directory exists
-      const tkxrDir = path.dirname(this.projectPath);
-      await fs.mkdir(tkxrDir, { recursive: true });
-      
-      const content = await fs.readFile(this.projectPath, 'utf8');
-      const parsed = yaml.load(content) as ProjectData;
-      
-      // Convert date strings back to Date objects
-      parsed.project.created = new Date(parsed.project.created);
-      parsed.project.updated = new Date(parsed.project.updated);
-      
-      parsed.users.forEach(user => {
-        user.createdAt = new Date(user.createdAt);
-        user.updatedAt = new Date(user.updatedAt);
-      });
-      
-      parsed.sprints.forEach(sprint => {
-        sprint.createdAt = new Date(sprint.createdAt);
-        sprint.updatedAt = new Date(sprint.updatedAt);
-        if (sprint.startDate) sprint.startDate = new Date(sprint.startDate);
-        if (sprint.endDate) sprint.endDate = new Date(sprint.endDate);
-      });
-      
-      parsed.tickets.forEach(ticket => {
-        ticket.createdAt = new Date(ticket.createdAt);
-        ticket.updatedAt = new Date(ticket.updatedAt);
-      });
-      
-      parsed.comments.forEach(comment => {
-        comment.createdAt = new Date(comment.createdAt);
-        comment.updatedAt = new Date(comment.updatedAt);
-      });
-      
-      this.data = parsed;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        this.data = this.getDefaultProjectData();
-        await this.saveProject();
-      } else {
-        throw error;
-      }
-    }
-  }
-
-  async saveProject(): Promise<void> {
-    this.data.project.updated = new Date();
-    
-    const yamlContent = yaml.dump(this.data, {
-      indent: 2,
-      lineWidth: 120,
-      forceQuotes: false,
-    });
-    
-    await fs.writeFile(this.projectPath, yamlContent, 'utf8');
-  }
-
-  // User methods
+  // User CRUD
   async createUser(username: string, displayName: string, options: Partial<User> = {}): Promise<User> {
     const now = new Date();
     const user: User = {
@@ -106,26 +33,39 @@ export class ProjectStorage {
       updatedAt: now,
       ...options,
     };
-
-    this.data.users.push(user);
-    await this.saveProject();
+    const users = await this.getUsers();
+    users.push(user);
+    await fs.writeFile(this.usersPath, JSON.stringify(users, null, 2), 'utf8');
     return user;
   }
 
   async getUsers(): Promise<User[]> {
-    return [...this.data.users];
+    try {
+      const content = await fs.readFile(this.usersPath, 'utf8');
+      const users = JSON.parse(content);
+      return users.map((u: any) => ({
+        ...u,
+        createdAt: new Date(u.createdAt),
+        updatedAt: new Date(u.updatedAt),
+      }));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return [];
+      }
+      throw error;
+    }
   }
 
   async deleteUser(userId: string): Promise<boolean> {
-    const index = this.data.users.findIndex(u => u.id === userId);
+    const users = await this.getUsers();
+    const index = users.findIndex(u => u.id === userId);
     if (index === -1) return false;
-    
-    this.data.users.splice(index, 1);
-    await this.saveProject();
+    users.splice(index, 1);
+    await fs.writeFile(this.usersPath, JSON.stringify(users, null, 2), 'utf8');
     return true;
   }
 
-  // Sprint methods
+  // Sprint CRUD
   async createSprint(name: string, options: Partial<Sprint> = {}): Promise<Sprint> {
     const now = new Date();
     const sprint: Sprint = {
@@ -136,43 +76,64 @@ export class ProjectStorage {
       updatedAt: now,
       ...options,
     };
-
-    this.data.sprints.push(sprint);
-    await this.saveProject();
+    const sprints = await this.getSprints();
+    sprints.push(sprint);
+    await fs.writeFile(this.sprintsPath, JSON.stringify(sprints, null, 2), 'utf8');
     return sprint;
   }
 
   async getSprints(): Promise<Sprint[]> {
-    return [...this.data.sprints];
+    try {
+      const content = await fs.readFile(this.sprintsPath, 'utf8');
+      const sprints = JSON.parse(content);
+      return sprints.map((s: any) => ({
+        ...s,
+        createdAt: new Date(s.createdAt),
+        updatedAt: new Date(s.updatedAt),
+        startDate: s.startDate ? new Date(s.startDate) : undefined,
+        endDate: s.endDate ? new Date(s.endDate) : undefined,
+      }));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return [];
+      }
+      throw error;
+    }
   }
 
   async updateSprintStatus(id: string, status: Sprint['status']): Promise<Sprint | null> {
-    const sprint = this.data.sprints.find(s => s.id === id);
+    const sprints = await this.getSprints();
+    const sprint = sprints.find(s => s.id === id);
     if (!sprint) return null;
-
-    const oldStatus = sprint.status;
     sprint.status = status;
     sprint.updatedAt = new Date();
-    
-    // If moving to completed, archive the sprint data
-    if (oldStatus !== 'completed' && status === 'completed') {
-      await this.archiveCompletedSprint(sprint);
-    }
-    
-    await this.saveProject();
+    await fs.writeFile(this.sprintsPath, JSON.stringify(sprints, null, 2), 'utf8');
     return sprint;
   }
 
   async deleteSprint(sprintId: string): Promise<boolean> {
-    const index = this.data.sprints.findIndex(s => s.id === sprintId);
+    const sprints = await this.getSprints();
+    const index = sprints.findIndex(s => s.id === sprintId);
     if (index === -1) return false;
-    
-    this.data.sprints.splice(index, 1);
-    await this.saveProject();
+    sprints.splice(index, 1);
+    await fs.writeFile(this.sprintsPath, JSON.stringify(sprints, null, 2), 'utf8');
     return true;
   }
 
-  // Ticket methods
+  // Ticket CRUD (NDJSON)
+  private async getTicketChunkFiles(): Promise<string[]> {
+    try {
+      const files = await fs.readdir(this.ticketsDir);
+      return files.filter(f => f.endsWith('.ndjson'));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        await fs.mkdir(this.ticketsDir, { recursive: true });
+        return [];
+      }
+      throw error;
+    }
+  }
+
   async createTicket(type: TicketType, title: string, options: Partial<Ticket> = {}): Promise<Ticket> {
     const now = new Date();
     const ticket: Ticket = {
@@ -184,52 +145,63 @@ export class ProjectStorage {
       updatedAt: now,
       ...options,
     };
-
-    this.data.tickets.push(ticket);
-    await this.saveProject();
+    const chunkFiles = await this.getTicketChunkFiles();
+    let chunkFile = chunkFiles[chunkFiles.length - 1];
+    if (!chunkFile) {
+      chunkFile = 'tickets-0001.ndjson';
+    }
+    const chunkPath = path.join(this.ticketsDir, chunkFile);
+    let count = 0;
+    try {
+      const content = await fs.readFile(chunkPath, 'utf8');
+      count = content.split('\n').filter(line => line.trim()).length;
+    } catch (error) {}
+    if (count >= 1000) {
+      const nextNum = chunkFiles.length + 1;
+      chunkFile = `tickets-${String(nextNum).padStart(4, '0')}.ndjson`;
+      await fs.writeFile(path.join(this.ticketsDir, chunkFile), '', 'utf8');
+    }
+    await fs.appendFile(path.join(this.ticketsDir, chunkFile), JSON.stringify(ticket) + '\n', 'utf8');
     return ticket;
   }
 
   async getAllTickets(): Promise<Ticket[]> {
-    return [...this.data.tickets];
+    const chunkFiles = await this.getTicketChunkFiles();
+    let tickets: Ticket[] = [];
+    for (const file of chunkFiles) {
+      const content = await fs.readFile(path.join(this.ticketsDir, file), 'utf8');
+      const lines = content.split('\n').filter(line => line.trim());
+      tickets = tickets.concat(lines.map(line => {
+        const t = JSON.parse(line);
+        return {
+          ...t,
+          createdAt: new Date(t.createdAt),
+          updatedAt: new Date(t.updatedAt),
+        };
+      }));
+    }
+    return tickets;
   }
 
   async getTicketsByType(type: TicketType): Promise<Ticket[]> {
-    return this.data.tickets.filter(t => t.type === type);
+    const tickets = await this.getAllTickets();
+    return tickets.filter(t => t.type === type);
   }
 
-  async updateTicketStatus(id: string, status: Ticket['status']): Promise<Ticket | null> {
-    const ticket = this.data.tickets.find(t => t.id === id);
-    if (!ticket) return null;
-
-    ticket.status = status;
-    ticket.updatedAt = new Date();
-    
-    await this.saveProject();
-    return ticket;
+  // Comment CRUD (NDJSON)
+  private async getCommentChunkFiles(): Promise<string[]> {
+    try {
+      const files = await fs.readdir(this.commentsDir);
+      return files.filter(f => f.endsWith('.ndjson'));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        await fs.mkdir(this.commentsDir, { recursive: true });
+        return [];
+      }
+      throw error;
+    }
   }
 
-  async updateTicket(id: string, updates: Partial<Ticket>): Promise<Ticket | null> {
-    const ticket = this.data.tickets.find(t => t.id === id);
-    if (!ticket) return null;
-
-    Object.assign(ticket, updates);
-    ticket.updatedAt = new Date();
-    
-    await this.saveProject();
-    return ticket;
-  }
-
-  async deleteTicket(ticketId: string): Promise<boolean> {
-    const index = this.data.tickets.findIndex(t => t.id === ticketId);
-    if (index === -1) return false;
-    
-    this.data.tickets.splice(index, 1);
-    await this.saveProject();
-    return true;
-  }
-
-  // Comment methods
   async createComment(ticketId: string, author: string, content: string): Promise<TicketComment> {
     const now = new Date();
     const comment: TicketComment = {
@@ -240,55 +212,88 @@ export class ProjectStorage {
       createdAt: now,
       updatedAt: now,
     };
-
-    this.data.comments.push(comment);
-    await this.saveProject();
+    const chunkFiles = await this.getCommentChunkFiles();
+    let chunkFile = chunkFiles[chunkFiles.length - 1];
+    if (!chunkFile) {
+      chunkFile = 'comments-0001.ndjson';
+    }
+    const chunkPath = path.join(this.commentsDir, chunkFile);
+    let count = 0;
+    try {
+      const content = await fs.readFile(chunkPath, 'utf8');
+      count = content.split('\n').filter(line => line.trim()).length;
+    } catch (error) {}
+    if (count >= 1000) {
+      const nextNum = chunkFiles.length + 1;
+      chunkFile = `comments-${String(nextNum).padStart(4, '0')}.ndjson`;
+      await fs.writeFile(path.join(this.commentsDir, chunkFile), '', 'utf8');
+    }
+    await fs.appendFile(path.join(this.commentsDir, chunkFile), JSON.stringify(comment) + '\n', 'utf8');
     return comment;
   }
 
   async getComments(ticketId: string): Promise<TicketComment[]> {
-    return this.data.comments.filter(c => c.ticketId === ticketId);
-  }
-
-  async deleteComment(commentId: string): Promise<boolean> {
-    const index = this.data.comments.findIndex(c => c.id === commentId);
-    if (index === -1) return false;
-    
-    this.data.comments.splice(index, 1);
-    await this.saveProject();
-    return true;
-  }
-
-  // Helper methods for CLI compatibility
-  async getTicketsBySprint(sprintId: string): Promise<Ticket[]> {
-    return this.data.tickets.filter(t => t.sprint === sprintId);
-  }
-
-  async findTicket(ticketId: string): Promise<{ ticket: Ticket } | null> {
-    const ticket = this.data.tickets.find(t => t.id === ticketId);
-    if (ticket) {
-      return { ticket };
+    const chunkFiles = await this.getCommentChunkFiles();
+    let comments: TicketComment[] = [];
+    for (const file of chunkFiles) {
+      const content = await fs.readFile(path.join(this.commentsDir, file), 'utf8');
+      const lines = content.split('\n').filter(line => line.trim());
+      comments = comments.concat(lines.map(line => {
+        const c = JSON.parse(line);
+        return {
+          ...c,
+          createdAt: new Date(c.createdAt),
+          updatedAt: new Date(c.updatedAt),
+        };
+      }));
     }
-    return null;
+    return comments.filter(c => c.ticketId === ticketId);
   }
 
-  // Extra helper methods for delete command compatibility
+  // Find ticket by ID
+  async findTicket(ticketId: string): Promise<{ ticket: Ticket } | null> {
+    const tickets = await this.getAllTickets();
+    const ticket = tickets.find(t => t.id === ticketId);
+    return ticket ? { ticket } : null;
+  }
+
+  // Find entity by ID
   async findEntity(id: string): Promise<{ entity: any, type: string } | null> {
-    // Check tickets
-    const ticket = this.data.tickets.find(t => t.id === id);
+    const tickets = await this.getAllTickets();
+    const ticket = tickets.find(t => t.id === id);
     if (ticket) return { entity: ticket, type: ticket.type === 'task' ? 'tasks' : 'bugs' };
-    
-    // Check sprints
-    const sprint = this.data.sprints.find(s => s.id === id);
+    const sprints = await this.getSprints();
+    const sprint = sprints.find(s => s.id === id);
     if (sprint) return { entity: sprint, type: 'sprints' };
-    
-    // Check users
-    const user = this.data.users.find(u => u.id === id);
+    const users = await this.getUsers();
+    const user = users.find(u => u.id === id);
     if (user) return { entity: user, type: 'users' };
-    
     return null;
   }
 
+  // Delete comment by ID
+  async deleteComment(commentId: string): Promise<boolean> {
+    const chunkFiles = await this.getCommentChunkFiles();
+    let found = false;
+    for (const file of chunkFiles) {
+      const filePath = path.join(this.commentsDir, file);
+      const content = await fs.readFile(filePath, 'utf8');
+      const lines = content.split('\n').filter(line => line.trim());
+      const filtered = lines.filter(line => {
+        const c = JSON.parse(line);
+        if (c.id === commentId) {
+          found = true;
+          return false;
+        }
+        return true;
+      });
+      await fs.writeFile(filePath, filtered.map(l => l + '\n').join(''), 'utf8');
+      if (found) break;
+    }
+    return found;
+  }
+
+  // Delete entity by type and ID
   async deleteEntity(entityType: string, id: string): Promise<boolean> {
     switch (entityType) {
       case 'tasks':
@@ -305,89 +310,66 @@ export class ProjectStorage {
     }
   }
 
-  // Sprint archiving to handle scale
-  private async archiveCompletedSprint(sprint: Sprint): Promise<void> {
-    try {
-      const sprintTickets = this.data.tickets.filter(t => t.sprint === sprint.id);
-      const sprintComments = this.data.comments.filter(c => 
-        sprintTickets.some(t => t.id === c.ticketId)
-      );
-
-      if (sprintTickets.length === 0) return; // Nothing to archive
-
-      // Ensure archives directory exists
-      const archivesDir = './tkxr/archives';
-      try {
-        await fs.mkdir(archivesDir, { recursive: true });
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-          throw error;
+  // Delete ticket by ID
+  async deleteTicket(ticketId: string): Promise<boolean> {
+    const chunkFiles = await this.getTicketChunkFiles();
+    let found = false;
+    for (const file of chunkFiles) {
+      const filePath = path.join(this.ticketsDir, file);
+      const content = await fs.readFile(filePath, 'utf8');
+      const lines = content.split('\n').filter(line => line.trim());
+      const filtered = lines.filter(line => {
+        const t = JSON.parse(line);
+        if (t.id === ticketId) {
+          found = true;
+          return false;
         }
-      }
-
-      // Create archive data
-      const archiveData = {
-        version: '1.0',
-        sprint,
-        tickets: sprintTickets,
-        comments: sprintComments,
-        archivedAt: new Date()
-      };
-
-      // Save to archive file in archives directory
-      const archivePath = path.join(archivesDir, `archive-${sprint.id}.yaml`);
-      const yamlContent = yaml.dump(archiveData, {
-        indent: 2,
-        lineWidth: 120,
-        forceQuotes: false,
+        return true;
       });
-      
-      await fs.writeFile(archivePath, yamlContent, 'utf8');
-
-      // Remove archived tickets and comments from main file
-      this.data.tickets = this.data.tickets.filter(t => t.sprint !== sprint.id);
-      this.data.comments = this.data.comments.filter(c => 
-        !sprintTickets.some(t => t.id === c.ticketId)
-      );
-
-      console.log(`✓ Archived ${sprintTickets.length} tickets and ${sprintComments.length} comments to ${archivePath}`);
-    } catch (error) {
-      console.error('Error archiving sprint:', error);
-      throw error;
+      await fs.writeFile(filePath, filtered.map(l => l + '\n').join(''), 'utf8');
+      if (found) break;
     }
+    return found;
   }
 
-  // Get archived sprint data
-  async getArchivedSprintData(sprintId: string): Promise<any | null> {
-    try {
-      const archivePath = path.join('./tkxr/archives', `archive-${sprintId}.yaml`);
-      const content = await fs.readFile(archivePath, 'utf8');
-      return yaml.load(content);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return null;
-      }
-      throw error;
+  // Update ticket by ID
+  async updateTicket(id: string, updates: Partial<Ticket>): Promise<Ticket | null> {
+    const chunkFiles = await this.getTicketChunkFiles();
+    let updatedTicket: Ticket | null = null;
+    for (const file of chunkFiles) {
+      const filePath = path.join(this.ticketsDir, file);
+      const content = await fs.readFile(filePath, 'utf8');
+      const lines = content.split('\n').filter(line => line.trim());
+      const newLines = lines.map(line => {
+        const t = JSON.parse(line);
+        if (t.id === id) {
+          updatedTicket = { ...t, ...updates, updatedAt: new Date() };
+          return JSON.stringify(updatedTicket);
+        }
+        return line;
+      });
+      await fs.writeFile(filePath, newLines.map(l => l + '\n').join(''), 'utf8');
+      if (updatedTicket) break;
     }
+    return updatedTicket;
   }
 
-  // List all archived sprints
+  // Update ticket status
+  async updateTicketStatus(id: string, status: Ticket['status']): Promise<Ticket | null> {
+    return this.updateTicket(id, { status });
+  }
+
+  // Get archived sprints (stub)
   async getArchivedSprints(): Promise<string[]> {
-    try {
-      const archivesDir = './tkxr/archives';
-      const files = await fs.readdir(archivesDir);
-      return files
-        .filter(f => f.startsWith('archive-') && f.endsWith('.yaml'))
-        .map(f => f.replace('archive-', '').replace('.yaml', ''));
-    } catch (error) {
-      return [];
-    }
+    return [];
+  }
+
+  // loadProject (no-op for JSON)
+  async loadProject(): Promise<void> {
+    return;
   }
 }
 
-// Create storage instance - now always returns ProjectStorage
 export const createStorage = async (): Promise<ProjectStorage> => {
-  const storage = new ProjectStorage();
-  await storage.loadProject();
-  return storage;
+  return new ProjectStorage();
 };

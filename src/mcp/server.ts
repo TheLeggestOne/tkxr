@@ -237,7 +237,7 @@ class TKXRMCPServer {
           },
           {
             name: 'list_comments',
-            description: 'List all comments for a specific ticket',
+              description: 'List all comments for a specific ticket. Usage: list_comments {ticketId}',
             inputSchema: {
               type: 'object',
               properties: {
@@ -251,7 +251,7 @@ class TKXRMCPServer {
           },
           {
             name: 'add_comment',
-            description: 'Add a comment to a ticket',
+              description: 'Add a comment to a ticket. Usage: add_comment {ticketId} --author {authorId} --content {content}',
             inputSchema: {
               type: 'object',
               properties: {
