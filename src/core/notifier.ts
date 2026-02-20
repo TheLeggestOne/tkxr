@@ -37,11 +37,13 @@ export class NotificationClient {
       
       // Don't throw on HTTP errors, just log for debugging
       if (!response.ok) {
-        console.debug(`Notification failed: ${response.status}`);
+        console.log(`⚠️  Notification failed: ${response.status} - ${endpoint}`);
+      } else {
+        console.log(`✓ Notification sent successfully: ${endpoint}`);
       }
     } catch (error) {
       // Silently fail - server might not be running
-      console.debug('Server notification failed:', error instanceof Error ? error.message : 'Unknown error');
+      console.log(`⚠️  Server notification failed for ${endpoint}:`, error instanceof Error ? error.message : 'Unknown error');
     }
   }
 
@@ -85,6 +87,20 @@ export class NotificationClient {
    */
   async notifyUserCreated(user: any): Promise<void> {
     await this.notify('/api/cli-notifications/user-created', user);
+  }
+
+  /**
+   * Notify server that a comment was created
+   */
+  async notifyCommentCreated(comment: any): Promise<void> {
+    await this.notify('/api/cli-notifications/comment-created', comment);
+  }
+
+  /**
+   * Notify server that a comment was deleted
+   */
+  async notifyCommentDeleted(commentId: string, ticketId: string): Promise<void> {
+    await this.notify('/api/cli-notifications/comment-deleted', { id: commentId, ticketId });
   }
 }
 

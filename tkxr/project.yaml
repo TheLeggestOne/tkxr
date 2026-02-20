@@ -2,7 +2,7 @@ version: '1.0'
 project:
   name: TKXR Project
   created: 2026-02-20T00:07:33.385Z
-  updated: 2026-02-20T01:49:29.040Z
+  updated: 2026-02-20T02:14:35.754Z
 tickets:
   - id: tas-0oTc10Cq
     type: task
@@ -465,9 +465,9 @@ tickets:
   - id: bug-VCiuqs5L
     type: bug
     title: add comment does not reload web ui
-    status: todo
+    status: done
     createdAt: 2026-02-20T01:47:40.868Z
-    updatedAt: 2026-02-20T01:47:40.868Z
+    updatedAt: 2026-02-20T02:14:35.754Z
     description: make sure when the cli is used to add a comment, the web ui is notified and refreshes
     assignee: use-JTYCH2se
     sprint: spr-hDifgOv0
@@ -561,9 +561,23 @@ comments:
     content: 'Critical items needed before NPM publish:'
     createdAt: 2026-02-20T01:47:56.359Z
     updatedAt: 2026-02-20T01:47:56.359Z
-  - id: com-sGIrcy1c
-    ticketId: tas-ArT7lw8y
+  - id: com-G7VFDDzp
+    ticketId: bug-VCiuqs5L
     author: use-JTYCH2se
-    content: 🚀 NPM Publishing Checklist - READY TO PUBLISH!
-    createdAt: 2026-02-20T01:49:29.040Z
-    updatedAt: 2026-02-20T01:49:29.040Z
+    content: >-
+      Also not all new comments added by cli/mcp are being picked up. Are they not present in the doc or just not being
+      found?
+    createdAt: 2026-02-20T01:50:57.653Z
+    updatedAt: 2026-02-20T01:50:57.653Z
+  - id: com-EVxJKDrn
+    ticketId: bug-VCiuqs5L
+    author: use-JTYCH2se
+    content: Testing comment functionality - investigating the bug
+    createdAt: 2026-02-20T01:52:19.772Z
+    updatedAt: 2026-02-20T01:52:19.772Z
+  - id: com-hwqFanKQ
+    ticketId: bug-VCiuqs5L
+    author: use-JTYCH2se
+    content: 🚀 Final test after API fix! The modal should now instantly show this comment without any timing issues.
+    createdAt: 2026-02-20T02:14:05.942Z
+    updatedAt: 2026-02-20T02:14:05.942Z

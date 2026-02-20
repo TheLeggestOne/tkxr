@@ -1,4 +1,11 @@
 <script lang="ts">
+	// @ts-ignore 
+	declare global {
+		interface Window {
+			tkxrWebSocket: WebSocket | null;
+		}
+	}
+
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import Plus from '../lib/icons/Plus.svelte';
@@ -202,6 +209,11 @@
 				console.debug('WebSocket connected successfully');
 				wsReconnectAttempts = 0; // Reset reconnect attempts on successful connection
 				
+				// Make WebSocket available globally for other components
+				if (browser) {
+					window.tkxrWebSocket = ws;
+				}
+				
 				// Set up heartbeat to keep connection alive
 				wsHeartbeatInterval = window.setInterval(() => {
 					if (ws && ws.readyState === WebSocket.OPEN) {
@@ -229,7 +241,9 @@
 						message.type === 'sprint_deleted' ||
 						message.type === 'user_created' ||
 						message.type === 'user_updated' ||
-						message.type === 'user_deleted') {
+						message.type === 'user_deleted' ||
+						message.type === 'comment_created' ||
+						message.type === 'comment_deleted') {
 						console.debug('Data update received, reloading...');
 						loadData(); // Reload data when updates occur
 					}
@@ -240,6 +254,11 @@
 			
 			ws.onclose = (event) => {
 				console.debug('WebSocket closed:', event.code, event.reason);
+				
+				// Clear global reference
+				if (browser && window.tkxrWebSocket === ws) {
+					window.tkxrWebSocket = null;
+				}
 				
 				// Clear heartbeat interval
 				if (wsHeartbeatInterval) {

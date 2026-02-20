@@ -216,6 +216,8 @@ export async function startServer(args: ServeArgs): Promise<void> {
   // Comments API
   app.get('/api/tickets/:ticketId/comments', async (req, res) => {
     try {
+      // Reload data from disk to ensure we have the latest changes
+      await storage.loadProject();
       const { ticketId } = req.params;
       const comments = await storage.getComments(ticketId);
       res.json(comments);
@@ -439,6 +441,38 @@ export async function startServer(args: ServeArgs): Promise<void> {
       broadcast(wss, { 
         type: 'user_created', 
         data: user 
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to process notification' });
+    }
+  });
+
+  app.post('/api/cli-notifications/comment-created', async (req, res) => {
+    try {
+      const comment = req.body;
+      
+      // Broadcast to WebSocket clients
+      broadcast(wss, { 
+        type: 'comment_created', 
+        data: comment 
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to process notification' });
+    }
+  });
+
+  app.post('/api/cli-notifications/comment-deleted', async (req, res) => {
+    try {
+      const { id, ticketId } = req.body;
+      
+      // Broadcast to WebSocket clients
+      broadcast(wss, { 
+        type: 'comment_deleted', 
+        data: { id, ticketId } 
       });
       
       res.json({ success: true });

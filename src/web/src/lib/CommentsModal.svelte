@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { createEventDispatcher, onMount } from 'svelte';
+	import { createEventDispatcher, onMount, onDestroy } from 'svelte';
 	import X from './icons/X.svelte';
 	import User from './icons/User.svelte';
 	import Trash from './icons/Trash.svelte';
 	import type { Ticket, TicketComment } from './stores';
 	import { userStore } from './stores';
+	import { browser } from '$app/environment';
 
 	export let ticket: Ticket;
 	export let isOpen = false;
@@ -17,6 +18,7 @@
 	let selectedAuthor = '';
 	let isLoading = false;
 	let isSubmitting = false;
+	let wsEventListener: ((event: MessageEvent) => void) | null = null;
 
 	// Helper function to get user display name
 	$: getUserDisplayName = (userId: string | undefined) => {
@@ -26,22 +28,75 @@
 	};
 
 	async function loadComments() {
-		if (!isOpen || !ticket.id) return;
+		if (!isOpen || !ticket.id) {
+			console.debug('CommentsModal: loadComments skipped - modal closed or no ticket ID');
+			return;
+		}
 		
+		console.debug('CommentsModal: Loading comments for ticket', ticket.id);
 		isLoading = true;
 		try {
 			const response = await fetch(`/api/tickets/${ticket.id}/comments`);
+			console.debug('CommentsModal: Comments API response', response.status, response.ok);
 			if (response.ok) {
 				const fetchedComments = await response.json();
+				console.debug('CommentsModal: Fetched', fetchedComments.length, 'comments');
 				// Sort comments chronologically (oldest first)
 				comments = fetchedComments.sort((a: TicketComment, b: TicketComment) => 
 					new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
 				);
+				console.debug('CommentsModal: Comments updated, now showing', comments.length, 'comments');
+			} else {
+				console.error('CommentsModal: Failed to fetch comments', response.status, response.statusText);
 			}
 		} catch (error) {
-			console.error('Failed to load comments:', error);
+			console.error('CommentsModal: Failed to load comments:', error);
 		} finally {
 			isLoading = false;
+			console.debug('CommentsModal: Loading completed');
+		}
+	}
+
+	// Set up WebSocket listener for comment updates
+	function setupWebSocketListener() {
+		if (!browser) return;
+		
+		wsEventListener = (event: MessageEvent) => {
+			try {
+				const message = JSON.parse(event.data);
+				console.debug('CommentsModal received WebSocket message:', message);
+				
+				// Check if this is a comment update for our ticket
+				if ((message.type === 'comment_created' || message.type === 'comment_deleted') &&
+					message.data.ticketId === ticket.id && isOpen) {
+					console.debug('Comment update received for current ticket, reloading comments...');
+					loadComments();
+				}
+			} catch (error) {
+				console.error('Error parsing WebSocket message in CommentsModal:', error);
+			}
+		};
+		
+		// Find the existing WebSocket connection from the parent page
+		const checkForWebSocket = () => {
+			// @ts-ignore - accessing global WebSocket from parent
+			if (window.tkxrWebSocket && window.tkxrWebSocket.readyState === WebSocket.OPEN) {
+				console.debug('CommentsModal: Adding WebSocket listener');
+				window.tkxrWebSocket.addEventListener('message', wsEventListener);
+			} else {
+				// Retry after a short delay if WebSocket is not ready yet
+				setTimeout(checkForWebSocket, 100);
+			}
+		};
+		
+		checkForWebSocket();
+	}
+
+	function cleanupWebSocketListener() {
+		if (wsEventListener && browser && window.tkxrWebSocket) {
+			console.debug('CommentsModal: Removing WebSocket listener');
+			window.tkxrWebSocket.removeEventListener('message', wsEventListener);
+			wsEventListener = null;
 		}
 	}
 
@@ -94,6 +149,7 @@
 
 	function handleClose() {
 		newComment = '';
+		cleanupWebSocketListener();
 		dispatch('close');
 	}
 
@@ -103,14 +159,28 @@
 		}
 	}
 
-	// Load comments when modal opens
-	$: if (isOpen) {
+	// Reactive: Load comments when modal opens or ticket changes
+	$: if (isOpen && ticket.id) {
 		loadComments();
+		setupWebSocketListener();
+	}
+
+	// Reactive: Clean up when modal closes
+	$: if (!isOpen) {
+		cleanupWebSocketListener();
+	}
+
+	// Reactive: Set default author when modal opens
+	$: if (isOpen) {
 		// Set default author: use defaultAuthor prop if provided, otherwise first user
 		if (!selectedAuthor && $userStore.length > 0) {
 			selectedAuthor = defaultAuthor || $userStore[0].id;
 		}
 	}
+
+	onDestroy(() => {
+		cleanupWebSocketListener();
+	});
 </script>
 
 <svelte:window on:keydown={handleKeydown} />

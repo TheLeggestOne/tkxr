@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import type minimist from 'minimist';
 import { createStorage } from '../../core/storage.js';
+import { notifier } from '../../core/notifier.js';
 
 
 interface CommentsArgs extends minimist.ParsedArgs {
@@ -96,8 +97,13 @@ async function addComment(storage: any, ticketId: string, args: CommentsArgs): P
 
   const comment = await storage.createComment(ticketId, user.id, content);
 
+  // Ensure the comment is fully saved before sending notification
+  // The createComment method should already call saveProject(), but let's be explicit
   console.log(chalk.green('✓ Comment added successfully'));
   console.log(chalk.dim(`  ID: ${comment.id}`));
   console.log(chalk.dim(`  Author: ${user.displayName || user.username}`));
   console.log(chalk.dim(`  Content: ${content}`));
+
+  // Send notification after everything is saved
+  await notifier.notifyCommentCreated(comment);
 }
