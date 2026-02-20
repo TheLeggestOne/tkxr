@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type minimist from 'minimist';
-import { FileStorage } from '../../core/storage.js';
+import { createStorage } from '../../core/storage.js';
 import type { Ticket, Sprint, User, TicketType } from '../../core/types.js';
 
 interface ListArgs extends minimist.ParsedArgs {
@@ -71,7 +71,7 @@ function formatUser(user: User): string {
 
 export async function listTickets(args: ListArgs): Promise<void> {
   const [, entityType] = args._;
-  const storage = new FileStorage();
+  const storage = await createStorage();
   const verbose = args.verbose || args.v || false;
 
   // Load user and sprint data if verbose mode is enabled
@@ -143,7 +143,7 @@ export async function listTickets(args: ListArgs): Promise<void> {
         console.log(chalk.dim('ID'.padEnd(12) + 'STATUS'.padEnd(12) + 'NAME'));
         console.log(chalk.dim('─'.repeat(50)));
         
-        sprints.forEach(sprint => {
+        sprints.forEach((sprint: any) => {
           console.log(formatSprint(sprint));
         });
         break;
@@ -162,7 +162,7 @@ export async function listTickets(args: ListArgs): Promise<void> {
         console.log(chalk.dim('ID'.padEnd(12) + 'USERNAME'.padEnd(17) + 'DISPLAY NAME'));
         console.log(chalk.dim('─'.repeat(50)));
         
-        users.forEach(user => {
+        users.forEach((user: any) => {
           console.log(formatUser(user));
         });
         break;

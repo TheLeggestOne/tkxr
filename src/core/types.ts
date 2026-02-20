@@ -51,3 +51,24 @@ export interface ProjectConfig {
     allowedLabels?: string[];
   };
 }
+
+export interface ProjectData {
+  version: string;
+  project: {
+    name: string;
+    created: Date;
+    updated: Date;
+  };
+  users: User[];
+  sprints: Sprint[];
+  tickets: Ticket[];
+  comments: TicketComment[];
+}
+
+export interface ArchivedSprintData {
+  version: string;
+  sprint: Sprint;
+  tickets: Ticket[];
+  comments: TicketComment[];
+  archivedAt: Date;
+}

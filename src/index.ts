@@ -1,2 +1,2 @@
 export * from './core/types.js';
-export { FileStorage } from './core/storage.js';
+export { ProjectStorage } from './core/storage.js';

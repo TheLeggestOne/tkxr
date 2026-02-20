@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type minimist from 'minimist';
-import { FileStorage } from '../../core/storage.js';
+import { createStorage } from '../../core/storage.js';
 
 interface SprintArgs extends minimist.ParsedArgs {
   _: string[];
@@ -67,7 +67,7 @@ async function createSprint(rest: string[], args: SprintArgs): Promise<void> {
   }
 
   try {
-    const storage = new FileStorage();
+    const storage = await createStorage();
     const options: any = {};
     
     if (args.description) options.description = args.description;
@@ -111,7 +111,8 @@ async function updateSprintStatus(rest: string[]): Promise<void> {
   }
 
   try {
-    const storage = new FileStorage();
+    const storage = await createStorage();
+    
     const sprint = await storage.updateSprintStatus(id, status as any);
 
     if (!sprint) {

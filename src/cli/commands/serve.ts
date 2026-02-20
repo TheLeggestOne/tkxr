@@ -5,7 +5,7 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { promises as fs, unlinkSync } from 'fs';
 import path from 'path';
-import { FileStorage } from '../../core/storage.js';
+import { createStorage } from '../../core/storage.js';
 import { notifier } from '../../core/notifier.js';
 
 interface ServeArgs extends minimist.ParsedArgs {
@@ -21,7 +21,7 @@ export async function startServer(args: ServeArgs): Promise<void> {
   const server = createServer(app);
   const wss = new WebSocketServer({ server });
   
-  const storage = new FileStorage();
+  const storage = await createStorage();
 
   // Update notifier URL for this server instance
   const serverUrl = `http://${host}:${port}`;
@@ -116,27 +116,12 @@ export async function startServer(args: ServeArgs): Promise<void> {
       const { id } = req.params;
       const updates = req.body;
       
-      // Load existing ticket
-      let ticket = await storage.loadEntity('tasks', id);
-      let entityType = 'tasks';
-      
-      if (!ticket) {
-        ticket = await storage.loadEntity('bugs', id);
-        entityType = 'bugs';
-      }
+      // Update ticket using the simplified interface
+      const updatedTicket = await storage.updateTicket(id, updates);
 
-      if (!ticket) {
+      if (!updatedTicket) {
         return res.status(404).json({ error: 'Ticket not found' });
       }
-
-      // Update ticket
-      const updatedTicket = {
-        ...ticket,
-        ...updates,
-        updatedAt: new Date()
-      };
-
-      await storage.saveEntity(entityType, updatedTicket);
       
       // Broadcast to WebSocket clients
       broadcast(wss, { 

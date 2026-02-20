@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type minimist from 'minimist';
-import { FileStorage } from '../../core/storage.js';
+import { createStorage } from '../../core/storage.js';
 import type { TicketType } from '../../core/types.js';
 import { notifier } from '../../core/notifier.js';
 
@@ -27,7 +27,7 @@ export async function createTicket(args: CreateArgs): Promise<void> {
     return;
   }
 
-  const storage = new FileStorage();
+  const storage = await createStorage();
 
   try {
     switch (entityType) {

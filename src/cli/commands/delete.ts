@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type minimist from 'minimist';
-import { FileStorage } from '../../core/storage.js';
+import { createStorage } from '../../core/storage.js';
 import { notifier } from '../../core/notifier.js';
 
 interface DeleteArgs extends minimist.ParsedArgs {
@@ -16,39 +16,18 @@ export async function deleteTicket(args: DeleteArgs): Promise<void> {
     return;
   }
 
-  const storage = new FileStorage();
+  const storage = await createStorage();
 
   try {
     // Try to find and load the entity first to show what we're deleting
-    let entity = null;
-    let entityType = '';
-
-    // Check tasks
-    entity = await storage.loadEntity('tasks', id);
-    if (entity) entityType = 'tasks';
+    const result = await storage.findEntity(id);
     
-    // Check bugs if not found in tasks
-    if (!entity) {
-      entity = await storage.loadEntity('bugs', id);
-      if (entity) entityType = 'bugs';
-    }
-    
-    // Check sprints if not found in tickets
-    if (!entity) {
-      entity = await storage.loadEntity('sprints', id);
-      if (entity) entityType = 'sprints';
-    }
-    
-    // Check users if not found elsewhere
-    if (!entity) {
-      entity = await storage.loadEntity('users', id);
-      if (entity) entityType = 'users';
-    }
-
-    if (!entity) {
+    if (!result) {
       console.log(chalk.red(`Error: No entity found with ID "${id}"`));
       return;
     }
+
+    const { entity, type: entityType } = result;
 
     // Show what will be deleted
     console.log(chalk.yellow(`About to delete ${entityType.slice(0, -1)}: ${id}`));

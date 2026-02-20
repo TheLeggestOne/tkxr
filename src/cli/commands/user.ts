@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type minimist from 'minimist';
-import { FileStorage } from '../../core/storage.js';
+import { createStorage } from '../../core/storage.js';
 
 interface UserArgs extends minimist.ParsedArgs {
   _: string[];
@@ -53,7 +53,7 @@ async function createUser(rest: string[], args: UserArgs): Promise<void> {
   }
 
   try {
-    const storage = new FileStorage();
+    const storage = await createStorage();
     const user = await storage.createUser(username, displayName, {
       email: args.email,
     });

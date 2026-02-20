@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type minimist from 'minimist';
-import { FileStorage } from '../../core/storage.js';
+import { createStorage } from '../../core/storage.js';
 import type { Ticket, TicketStatus } from '../../core/types.js';
 
 interface ShowArgs extends minimist.ParsedArgs {
@@ -16,19 +16,18 @@ export async function showTicket(args: ShowArgs): Promise<void> {
     return;
   }
 
-  const storage = new FileStorage();
+  const storage = await createStorage();
 
   try {
-    // Try loading from tasks first, then bugs
-    let ticket = await storage.loadEntity<Ticket>('tasks', ticketId);
-    if (!ticket) {
-      ticket = await storage.loadEntity<Ticket>('bugs', ticketId);
-    }
+    // Find the ticket using the new storage method
+    const result = await storage.findTicket(ticketId);
     
-    if (!ticket) {
+    if (!result) {
       console.log(chalk.red(`Ticket '${ticketId}' not found`));
       return;
     }
+
+    const ticket = result.ticket;
 
     // Load related data for display names
     const users = await storage.getUsers();

@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type minimist from 'minimist';
-import { FileStorage } from '../../core/storage.js';
-import type { TicketComment } from '../../core/types.js';
+import { createStorage } from '../../core/storage.js';
+
 
 interface CommentsArgs extends minimist.ParsedArgs {
   _: string[];
@@ -19,16 +19,13 @@ export async function manageComments(args: CommentsArgs): Promise<void> {
     return;
   }
 
-  const storage = new FileStorage();
+  const storage = await createStorage();
 
   try {
     // Verify ticket exists
-    let ticket = await storage.loadEntity('tasks', ticketId);
-    if (!ticket) {
-      ticket = await storage.loadEntity('bugs', ticketId);
-    }
+    const result = await storage.findTicket(ticketId);
     
-    if (!ticket) {
+    if (!result) {
       console.log(chalk.red(`Ticket '${ticketId}' not found`));
       return;
     }
@@ -43,7 +40,7 @@ export async function manageComments(args: CommentsArgs): Promise<void> {
   }
 }
 
-async function listComments(storage: FileStorage, ticketId: string): Promise<void> {
+async function listComments(storage: any, ticketId: string): Promise<void> {
   const comments = await storage.getComments(ticketId);
   const users = await storage.getUsers();
 
@@ -55,12 +52,12 @@ async function listComments(storage: FileStorage, ticketId: string): Promise<voi
   console.log(chalk.bold(`\n💬 Comments for ticket ${ticketId} (${comments.length})\n`));
 
   // Sort comments by creation date
-  const sortedComments = comments.sort((a, b) => 
+  const sortedComments = comments.sort((a: any, b: any) => 
     new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
   for (const comment of sortedComments) {
-    const user = users.find(u => u.id === comment.author);
+    const user = users.find((u: any) => u.id === comment.author);
     const authorName = user?.displayName || user?.username || comment.author;
     const createdAt = new Date(comment.createdAt).toLocaleString();
 
@@ -72,7 +69,7 @@ async function listComments(storage: FileStorage, ticketId: string): Promise<voi
   }
 }
 
-async function addComment(storage: FileStorage, ticketId: string, args: CommentsArgs): Promise<void> {
+async function addComment(storage: any, ticketId: string, args: CommentsArgs): Promise<void> {
   const { author, content } = args;
 
   if (!author) {
@@ -89,7 +86,7 @@ async function addComment(storage: FileStorage, ticketId: string, args: Comments
 
   // Verify author exists
   const users = await storage.getUsers();
-  const user = users.find(u => u.id === author || u.username === author);
+  const user = users.find((u: any) => u.id === author || u.username === author);
   
   if (!user) {
     console.log(chalk.red(`Error: User '${author}' not found`));

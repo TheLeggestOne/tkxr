@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type minimist from 'minimist';
-import { FileStorage } from '../../core/storage.js';
+import { createStorage } from '../../core/storage.js';
 import type { TicketStatus } from '../../core/types.js';
 import { notifier } from '../../core/notifier.js';
 
@@ -30,7 +30,7 @@ export async function updateTicketStatus(args: StatusArgs): Promise<void> {
     return;
   }
 
-  const storage = new FileStorage();
+  const storage = await createStorage();
 
   try {
     const updatedTicket = await storage.updateTicketStatus(id, status as TicketStatus);
