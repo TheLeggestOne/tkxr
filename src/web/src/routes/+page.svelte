@@ -45,7 +45,9 @@
 			if (saved) {
 				const settings = JSON.parse(saved);
 				activeTab = settings.activeTab || 'all-open';
-				selectedSprint = settings.selectedSprint || 'all';			selectedUser = settings.selectedUser || 'all';				searchTerm = settings.searchTerm || '';
+				selectedSprint = settings.selectedSprint || 'all';			
+				selectedUser = settings.selectedUser || 'all';				
+				searchTerm = settings.searchTerm || '';
 				sortBy = settings.sortBy || 'updated';
 				sortOrder = settings.sortOrder || 'desc';
 				viewMode = settings.viewMode || 'grid';
@@ -280,9 +282,19 @@
 	<title>tkxr - Dashboard</title>
 </svelte:head>
 
+<!-- Skip links for keyboard navigation -->
+<div class="sr-only focus-within:not-sr-only">
+	<a href="#main-content" class="absolute top-0 left-0 bg-blue-600 text-white p-2 rounded-md m-2 z-50">
+		Skip to main content
+	</a>
+	<a href="#search" class="absolute top-0 left-0 bg-blue-600 text-white p-2 rounded-md m-2 z-50">
+		Skip to search
+	</a>
+</div>
+
 <div class="container mx-auto px-4 py-8">
 	<!-- Header -->
-	<header class="mb-8">
+	<header class="mb-8" role="banner">
 		<div class="flex items-center justify-between">
 			<div>
 				<h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">tkxr</h1>
@@ -291,62 +303,79 @@
 					<span class="text-xs text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">v1.0.0</span>
 				</div>
 			</div>
-			<div class="flex items-center gap-4">
+			<nav class="flex items-center gap-4" role="navigation" aria-label="Application controls">
 				<DarkModeToggle />
 				
 				<!-- View Toggle -->
-				<div class="relative">
-					<div class="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+				<fieldset class="relative">
+					<legend class="sr-only">Choose view mode</legend>
+					<div class="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1" role="radiogroup" aria-label="View mode">
 						<button 
 							class="view-toggle-btn {viewMode === 'grid' ? 'active' : ''}"
 							on:click={() => viewMode = 'grid'}
 							title="Grid View"
+							aria-pressed={viewMode === 'grid'}
+							role="radiogroup"
+							aria-label="Grid view"
 						>
-							<Grid size={16} />
+							<Grid size={16} aria-hidden="true" />
 							<span class="hidden sm:inline">Grid</span>
 						</button>
 						<button 
-							class="view-toggle-btn {viewMode === 'kanban' ? 'active' : ''}"  
+							class="view-toggle-btn {viewMode === 'kanban' ? 'active' : ''}"
 							on:click={() => viewMode = 'kanban'}
 							title="Kanban Board"
+							aria-pressed={viewMode === 'kanban'}
+							role="radiogroup"
+							aria-label="Kanban board view"
 						>
-							<Columns size={16} />
+							<Columns size={16} aria-hidden="true" />
 							<span class="hidden sm:inline">Board</span>
 						</button>
 					</div>
-				</div>
-				
+				</fieldset>
 				<!-- Hamburger Menu Button -->
 				<div class="relative">
 					<button 
 						class="btn btn-secondary flex items-center gap-2"
 						on:click={() => showDrawer = true}
 						title="Search and Filters"
+						aria-label="Open search and filter options"
+						aria-expanded={showDrawer}
+						aria-controls="filter-drawer"
 					>
-						<Menu size={20} />
+						<Menu size={20} aria-hidden="true" />
 						<span class="hidden sm:inline">Options</span>
 					</button>
 					
 					<!-- Filter Active Badge -->
 					{#if searchTerm || selectedUser !== 'all'}
-						<div class="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+						<div class="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white dark:border-gray-800" 
+							 aria-hidden="true" title="Active filters applied"></div>
 					{/if}
 				</div>
-			</div>
+			</nav>
 		</div>
 
 		<!-- Sprint Progress Bar -->
 		{#if sprintProgress.isVisible}
-			<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 p-4 shadow-sm mb-4">
-				<div class="flex items-center justify-between mb-2">
-					<h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+			<section class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 p-4 shadow-sm mb-4 mt-6" 
+				 aria-labelledby="sprint-progress-title">
+				<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+					<h2 id="sprint-progress-title" class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1 min-w-0">
 						{sprintProgress.sprintName} Progress
-					</h3>
-					<span class="text-sm font-medium text-gray-600 dark:text-gray-400">
+					</h2>
+					<span class="text-sm font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap" 
+						  aria-label="Sprint progress details"
+						  title="{sprintProgress.completedPoints} of {sprintProgress.totalPoints} points completed ({sprintProgress.percentage}% done)">
 						{sprintProgress.completedPoints} / {sprintProgress.totalPoints} points ({sprintProgress.percentage}%)
 					</span>
 				</div>
-				<div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+				<div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3" role="progressbar" 
+					 aria-valuenow={sprintProgress.percentage} 
+					 aria-valuemin="0" 
+					 aria-valuemax="100"
+					 aria-label="Sprint completion progress">
 					<div 
 						class="h-3 rounded-full transition-all duration-500 ease-out"
 						class:bg-gray-300={sprintProgress.percentage === 0}
@@ -356,19 +385,22 @@
 						style="width: {sprintProgress.percentage}%"
 					></div>
 				</div>
-			</div>
+			</section>
 		{/if}
 	</header>
 
 	<!-- Stats -->
-	<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+	<section class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8" aria-labelledby="ticket-stats-title">
+		<h2 id="ticket-stats-title" class="sr-only">Ticket Statistics</h2>
 		<button 
 			class="card hover:shadow-lg transition-shadow cursor-pointer text-left w-full"
 			on:click={() => activeTab = 'all'}
 			title="View all tickets"
+			aria-label="View all tickets: {sprintFilteredTickets.length} total"
+			aria-pressed={activeTab === 'all'}
 		>
 			<div class="flex items-center gap-3">
-				<div class="p-2 bg-blue-100 dark:bg-blue-800 rounded-lg">
+				<div class="p-2 bg-blue-100 dark:bg-blue-800 rounded-lg" aria-hidden="true">
 					<CheckSquare class="w-6 h-6 text-blue-600 dark:text-blue-300" />
 				</div>
 				<div>
@@ -382,9 +414,11 @@
 			class="card hover:shadow-lg transition-shadow cursor-pointer text-left w-full"
 			on:click={() => activeTab = 'open-bugs'}
 			title="View open bugs"
+			aria-label="View open bugs: {sprintFilteredTickets.filter(t => t.type === 'bug' && t.status !== 'done').length} total"
+			aria-pressed={activeTab === 'open-bugs'}
 		>
 			<div class="flex items-center gap-3">
-				<div class="p-2 bg-red-100 dark:bg-red-800 rounded-lg">
+				<div class="p-2 bg-red-100 dark:bg-red-800 rounded-lg" aria-hidden="true">
 					<Bug class="w-6 h-6 text-red-600 dark:text-red-300" />
 				</div>
 				<div>
@@ -398,9 +432,11 @@
 			class="card hover:shadow-lg transition-shadow cursor-pointer text-left w-full"
 			on:click={() => activeTab = 'progress'}
 			title="View tickets in progress"
+			aria-label="View tickets in progress: {sprintFilteredTickets.filter(t => t.status === 'progress').length} total"
+			aria-pressed={activeTab === 'progress'}
 		>
 			<div class="flex items-center gap-3">
-				<div class="p-2 bg-yellow-100 dark:bg-yellow-800 rounded-lg">
+				<div class="p-2 bg-yellow-100 dark:bg-yellow-800 rounded-lg" aria-hidden="true">
 					<Clock class="w-6 h-6 text-yellow-600 dark:text-yellow-300" />
 				</div>
 				<div>
@@ -414,9 +450,11 @@
 			class="card hover:shadow-lg transition-shadow cursor-pointer text-left w-full"
 			on:click={() => activeTab = 'done'}
 			title="View completed tickets"
+			aria-label="View completed tickets: {sprintFilteredTickets.filter(t => t.status === 'done').length} total"
+			aria-pressed={activeTab === 'done'}
 		>
 			<div class="flex items-center gap-3">
-				<div class="p-2 bg-green-100 dark:bg-green-800 rounded-lg">
+				<div class="p-2 bg-green-100 dark:bg-green-800 rounded-lg" aria-hidden="true">
 					<Done class="w-6 h-6 text-green-600 dark:text-green-300" />
 				</div>
 				<div>
@@ -425,12 +463,12 @@
 				</div>
 			</div>
 		</button>
-	</div>
+	</section>
 
 	<!-- Tabs (only shown in grid view) -->
 	{#if viewMode === 'grid'}
 		<div class="mb-6">
-			<nav class="flex space-x-1">
+			<nav class="flex space-x-1" role="tablist" aria-label="Filter tickets">
 			{#each [
 				{ id: 'all-open', label: 'All Open', count: sprintFilteredTickets.filter(t => t.status !== 'done').length },
 				{ id: 'open-tasks', label: 'Open Tasks', count: sprintFilteredTickets.filter(t => t.type === 'task' && t.status !== 'done').length },
@@ -446,10 +484,15 @@
 						? 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700' 
 						: 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700'}"
 					on:click={() => activeTab = tab.id}
+					role="tab"
+					aria-selected={activeTab === tab.id}
+					aria-controls="tickets-content"
+					id="tab-{tab.id}"
 				>
 					{tab.label}
 					{#if tab.count > 0}
-						<span class="ml-2 px-2 py-0.5 bg-gray-200 {activeTab === tab.id ? 'bg-blue-200 dark:bg-blue-800' : 'dark:bg-gray-600'} rounded-full text-xs">
+						<span class="ml-2 px-2 py-0.5 bg-gray-200 {activeTab === tab.id ? 'bg-blue-200 dark:bg-blue-800' : 'dark:bg-gray-600'} rounded-full text-xs" 
+							  aria-label="{tab.count} tickets">
 							{tab.count}
 						</span>
 					{/if}
@@ -460,36 +503,50 @@
 	{/if}
 
 	<!-- Tickets Display -->
-	{#if viewMode === 'kanban'}
-		<!-- Kanban Board View -->
-		<KanbanBoard 
-			tickets={filteredTickets}
-			on:updated={loadData}
-			on:edit={(e) => handleEditTicket(e.detail)}
-			on:comments={(e) => handleCommentsTicket(e.detail)}
-			on:createTicket={(e) => {
-				createModalDefaultStatus = e.detail.status;
-				showCreateModal = true;
-			}}
-		/>
-	{:else}
-		<!-- Grid View -->
-		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-			{#each filteredTickets as ticket (ticket.id)}
-				<TicketCard {ticket} on:updated={loadData} on:edit={() => handleEditTicket(ticket)} on:comments={() => handleCommentsTicket(ticket)} />
-			{/each}
-			
-			{#if filteredTickets.length === 0}
-				<div class="col-span-full text-center py-12">
-					<div class="text-gray-400 mb-4">
-						<CheckSquare size={48} class="mx-auto" />
-					</div>
-					<p class="text-gray-600 dark:text-gray-400 text-lg">No tickets found</p>
-					<p class="text-gray-500">Create your first ticket to get started</p>
+	<main id="main-content" role="main" aria-live="polite">
+		{#if viewMode === 'kanban'}
+			<!-- Kanban Board View -->
+			<section id="tickets-content" 
+					 role="tabpanel" 
+					 aria-labelledby="kanban-view"
+					 aria-label="Kanban board view of tickets">
+				<h2 id="kanban-view" class="sr-only">Kanban Board View</h2>
+				<KanbanBoard 
+					tickets={filteredTickets}
+					on:updated={loadData}
+					on:edit={(e) => handleEditTicket(e.detail)}
+					on:comments={(e) => handleCommentsTicket(e.detail)}
+					on:createTicket={(e) => {
+						createModalDefaultStatus = e.detail.status;
+						showCreateModal = true;
+					}}
+				/>
+			</section>
+		{:else}
+			<!-- Grid View -->
+			<section id="tickets-content" 
+					 role="tabpanel" 
+					 aria-labelledby="tab-{activeTab}"
+					 aria-label="Grid view of {activeTab} tickets">
+				<h2 class="sr-only">Tickets Grid View: {activeTab}</h2>
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+					{#each filteredTickets as ticket (ticket.id)}
+						<TicketCard {ticket} on:updated={loadData} on:edit={() => handleEditTicket(ticket)} on:comments={() => handleCommentsTicket(ticket)} />
+					{/each}
+					
+					{#if filteredTickets.length === 0}
+						<div class="col-span-full text-center py-12" role="status" aria-live="polite">
+							<div class="text-gray-400 mb-4" aria-hidden="true">
+								<CheckSquare size={48} class="mx-auto" />
+							</div>
+							<p class="text-gray-600 dark:text-gray-400 text-lg">No tickets found</p>
+							<p class="text-gray-500">Create your first ticket to get started</p>
+						</div>
+					{/if}
 				</div>
-			{/if}
-		</div>
-	{/if}
+			</section>
+		{/if}
+	</main>
 
 	<!-- Create Ticket Modal -->
 	{#if showCreateModal}

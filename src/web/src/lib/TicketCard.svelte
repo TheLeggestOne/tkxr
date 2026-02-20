@@ -109,19 +109,22 @@
 	$: TypeIcon = ticket.type === 'bug' ? Bug : CheckSquare;
 </script>
 
-<div class="card hover:shadow-md transition-shadow">
+<div class="card hover:shadow-md transition-shadow" role="article" aria-labelledby="ticket-title-{ticket.id}">
 	<!-- Header -->
 	<div class="flex items-start justify-between mb-3">
 		<div class="flex items-center gap-2">
 			<TypeIcon 
 				size={18} 
-				class={ticket.type === 'bug' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'} 
+				class={ticket.type === 'bug' ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}
+				aria-hidden="true"
 			/>
-			<span class="text-sm font-mono text-gray-500 dark:text-gray-400">{ticket.id}</span>
+			<span class="text-sm font-mono text-gray-500 dark:text-gray-400" aria-label="Ticket ID">{ticket.id}</span>
+			<span class="sr-only">{ticket.type === 'bug' ? 'Bug' : 'Task'}</span>
 		</div>
 		
 		{#if ticket.priority}
-			<span class="px-2 py-1 text-xs font-medium rounded-full {priorityConfig[ticket.priority].color} {priorityConfig[ticket.priority].bg}">
+			<span class="px-2 py-1 text-xs font-medium rounded-full {priorityConfig[ticket.priority].color} {priorityConfig[ticket.priority].bg}" 
+				  aria-label="Priority: {ticket.priority}">
 				{ticket.priority}
 			</span>
 		{/if}
@@ -130,32 +133,36 @@
 	<!-- Title & Actions -->
 	<div class="flex items-start justify-between mb-2">
 		<h3 
+			id="ticket-title-{ticket.id}"
 			bind:this={titleElement}
 			class="font-semibold text-gray-900 dark:text-gray-100 flex-1{isExpanded ? '' : ' line-clamp-3'}"
 		>
 			{ticket.title}
 		</h3>
-		<div class="flex gap-1 ml-2">
+		<div class="flex gap-1 ml-2" role="group" aria-label="Ticket actions for {ticket.title}">
 			<button 
 				class="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-				title="View comments"
+				title="View comments for {ticket.title}"
+				aria-label="View comments for ticket {ticket.id}"
 				on:click={() => dispatch('comments')}
 			>
-				<MessageSquare size={14} />
+				<MessageSquare size={14} aria-hidden="true" />
 			</button>
 			<button 
 				class="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-				title="Edit ticket"
+				title="Edit {ticket.title}"
+				aria-label="Edit ticket {ticket.id}"
 				on:click={() => dispatch('edit')}
 			>
-				<Edit size={14} />
+				<Edit size={14} aria-hidden="true" />
 			</button>
 			<button 
 				class="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-				title="Delete ticket"
+				title="Delete {ticket.title}"
+				aria-label="Delete ticket {ticket.id}"
 				on:click={deleteTicket}
 			>
-				<Trash size={14} />
+				<Trash size={14} aria-hidden="true" />
 			</button>
 		</div>
 	</div>
@@ -175,22 +182,26 @@
 		<button 
 			on:click={toggleExpanded}
 			class="inline-flex items-center mb-3 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
-			title={isExpanded ? 'Collapse' : 'Expand'}
+			title={isExpanded ? 'Collapse content' : 'Expand content'}
+			aria-expanded={isExpanded}
+			aria-controls="ticket-content-{ticket.id}"
+			aria-label={isExpanded ? 'Show less content for ticket' : 'Show more content for ticket'}
 		>
 			<ChevronDown 
 				size={16} 
 				class="mr-1 transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}" 
+				aria-hidden="true"
 			/>
 			{isExpanded ? 'Show less' : 'Show more'}
 		</button>
 	{/if}
 
 	<!-- Metadata -->
-	<div class="space-y-2 mb-4">
+	<div id="ticket-content-{ticket.id}" class="space-y-2 mb-4" aria-label="Ticket metadata">
 		{#if ticket.assignee}
 			<div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-				<User size={16} />
-				<span>{getUserDisplayName(ticket.assignee)}</span>
+				<User size={16} aria-hidden="true" />
+				<span aria-label="Assigned to">{getUserDisplayName(ticket.assignee)}</span>
 			</div>
 		{/if}
 

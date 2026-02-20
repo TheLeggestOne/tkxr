@@ -36,4 +36,45 @@
   .label {
     @apply block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200;
   }
+  
+  /* Accessibility classes */
+  .sr-only {
+    @apply absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0;
+    clip: rect(0, 0, 0, 0);
+  }
+  
+  .sr-only.focus-within\:not-sr-only:focus-within,
+  .sr-only.focus\:not-sr-only:focus {
+    @apply static w-auto h-auto p-2 m-0 overflow-visible whitespace-normal;
+    clip: auto;
+  }
+  
+  /* Enhanced focus styles for better accessibility */
+  .focus-visible:focus-visible {
+    @apply outline-2 outline-blue-500 outline-offset-2;
+  }
+  
+  /* Improved focus styles for interactive elements */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    @apply outline-2 outline-blue-500 outline-offset-2;
+  }
+  
+  /* Reduced motion for users with vestibular disorders */
+  @media (prefers-reduced-motion: reduce) {
+    .transition-all,
+    .transition-transform,
+    .transition-colors {
+      transition: none !important;
+    }
+    
+    .animate-pulse,
+    .animate-bounce,
+    .animate-spin {
+      animation: none !important;
+    }
+  }
 }

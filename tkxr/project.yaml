@@ -2,7 +2,7 @@ version: '1.0'
 project:
   name: TKXR Project
   created: 2026-02-20T00:07:33.385Z
-  updated: 2026-02-20T00:25:19.460Z
+  updated: 2026-02-20T00:47:54.396Z
 tickets:
   - id: tas-0oTc10Cq
     type: task
@@ -47,9 +47,9 @@ tickets:
   - id: tas-6-1ZdYM2
     type: task
     title: A11y pass
-    status: todo
+    status: done
     createdAt: 2026-02-19T20:58:08.972Z
-    updatedAt: 2026-02-19T20:58:08.972Z
+    updatedAt: 2026-02-20T00:35:04.110Z
     description: Update web ui for accessibility standards
     assignee: use-JTYCH2se
     sprint: spr-hDifgOv0
@@ -432,6 +432,28 @@ tickets:
     status: todo
     createdAt: 2026-02-20T00:10:02.458Z
     updatedAt: 2026-02-20T00:10:02.458Z
+  - id: tas-3NY-DvSC
+    type: task
+    title: Fix Progress Bar layout
+    status: done
+    createdAt: 2026-02-20T00:38:12.615Z
+    updatedAt: 2026-02-20T00:47:54.396Z
+    description: Add a little padding over the box around the progress bar
+    assignee: use-JTYCH2se
+    sprint: spr-hDifgOv0
+    priority: medium
+    estimate: 1
+  - id: bug-hgCM7vH6
+    type: bug
+    title: Web UI not updating
+    status: todo
+    createdAt: 2026-02-20T00:41:04.611Z
+    updatedAt: 2026-02-20T00:47:35.962Z
+    description: After single file change, the webui doesn't stay up to date with changes from the cli anymore.
+    assignee: use-JTYCH2se
+    sprint: spr-hDifgOv0
+    priority: critical
+    estimate: 3
 sprints:
   - id: spr-GqmnrDyV
     name: JIRA Integration

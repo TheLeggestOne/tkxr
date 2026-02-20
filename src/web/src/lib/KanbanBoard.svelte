@@ -28,6 +28,10 @@
 	// Handle drag and drop
 	let draggedTicket: Ticket | null = null;
 	let dragCounter = 0;
+	
+	// Keyboard navigation state
+	let selectedTicketIndex = -1;
+	let selectedColumn = 0;
 
 	function handleDragStart(event: DragEvent, ticket: Ticket) {
 		draggedTicket = ticket;
@@ -112,8 +116,11 @@
 	] as const;
 </script>
 
-<div class="kanban-board">
-	{#each columns as column}
+<section class="kanban-board" role="application" aria-label="Kanban board for ticket management">
+	<div class="sr-only" aria-live="polite" id="kanban-instructions">
+		Use arrow keys to move tickets between columns. Press Enter or Space to select a ticket.
+	</div>
+	{#each columns as column, columnIndex}
 		<div 
 			class="kanban-column flex flex-col {column.bgClass} rounded-lg p-4"
 			on:dragover={handleDragOver}
@@ -121,17 +128,26 @@
 			on:dragleave={handleDragLeave}
 			on:drop={(e) => handleDrop(e, column.status)}
 			class:drag-over={dragCounter > 0 && draggedTicket?.status !== column.status}
+			role="region"
+			aria-labelledby="column-header-{column.status}"
+			aria-describedby="column-desc-{column.status}"
+			tabindex="0"
 		>
 			<!-- Column Header -->
-			<div class="flex items-center justify-between mb-4">
+			<header class="flex items-center justify-between mb-4">
 				<div class="flex items-center gap-2">
-					<svelte:component this={column.icon} class="w-5 h-5 {column.headerClass}" />
-					<h3 class="font-semibold {column.headerClass}">
+					<svelte:component this={column.icon} class="w-5 h-5 {column.headerClass}" aria-hidden="true" />
+					<h2 id="column-header-{column.status}" class="font-semibold {column.headerClass}">
 						{column.title}
-					</h3>
-					<span class="text-sm bg-white dark:bg-gray-700 px-2 py-1 rounded-full {column.headerClass}">
+					</h2>
+					<span class="text-sm bg-white dark:bg-gray-700 px-2 py-1 rounded-full {column.headerClass}" 
+						  aria-label="{groupedTickets[column.status].length} tickets">
 						{groupedTickets[column.status].length}
 					</span>
+				</div>
+				
+				<div id="column-desc-{column.status}" class="sr-only">
+					Column for {column.title} tickets. Contains {groupedTickets[column.status].length} tickets.
 				</div>
 				
 				<!-- Add button for each column -->
@@ -139,20 +155,28 @@
 					class="p-2 hover:bg-white/50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
 					on:click={() => addTicketToColumn(column.status)}
 					title="Add ticket to {column.title}"
+					aria-label="Add new ticket to {column.title} column"
 				>
-					<Plus class="w-4 h-4 {column.headerClass}" />
+					<Plus class="w-4 h-4 {column.headerClass}" aria-hidden="true" />
 				</button>
-			</div>
+			</header>
 
 			<!-- Tickets in this column -->
-			<div class="flex-1 space-y-3 overflow-y-auto">
-				{#each groupedTickets[column.status] as ticket (ticket.id)}
+			<div class="flex-1 space-y-3 overflow-y-auto" role="list" aria-label="{column.title} tickets">
+				{#each groupedTickets[column.status] as ticket, ticketIndex (ticket.id)}
 					<div 
 						draggable="true"
 						on:dragstart={(e) => handleDragStart(e, ticket)}
 						on:dragend={handleDragEnd}
+						on:keydown={(e) => handleKeydown(e, ticket, ticketIndex, column.status)}
 						class="kanban-ticket cursor-move transition-transform hover:scale-[1.02] active:scale-95"
 						class:opacity-50={draggedTicket === ticket}
+						class:ring-2={selectedTicketIndex === ticketIndex && selectedColumn === columnIndex}
+						class:ring-blue-500={selectedTicketIndex === ticketIndex && selectedColumn === columnIndex}
+						role="listitem"
+						tabindex="0"
+						aria-label="Ticket: {ticket.title}. Press Enter to move to next column or use arrow keys to move between columns."
+						aria-describedby="kanban-instructions"
 					>
 						<TicketCard 
 							{ticket} 
@@ -164,12 +188,13 @@
 				{/each}
 				
 				{#if groupedTickets[column.status].length === 0}
-					<div class="text-center py-8 text-gray-400 dark:text-gray-500">
-						<svelte:component this={column.icon} class="w-8 h-8 mx-auto mb-2 opacity-50" />
+					<div class="text-center py-8 text-gray-400 dark:text-gray-500" role="status" aria-live="polite">
+						<svelte:component this={column.icon} class="w-8 h-8 mx-auto mb-2 opacity-50" aria-hidden="true" />
 						<p class="text-sm">No {column.title.toLowerCase()} tickets</p>
 						<button 
 							class="mt-2 text-xs px-3 py-1 bg-white/50 dark:bg-gray-700/50 rounded-lg hover:bg-white/70 dark:hover:bg-gray-700/70 transition-colors"
 							on:click={() => addTicketToColumn(column.status)}
+							aria-label="Add first ticket to {column.title} column"
 						>
 							Add first ticket
 						</button>
@@ -178,7 +203,7 @@
 			</div>
 		</div>
 	{/each}
-</div>
+</section>
 
 <style>
 	.kanban-board {
