@@ -2,7 +2,7 @@ version: '1.0'
 project:
   name: TKXR Project
   created: 2026-02-20T00:07:33.385Z
-  updated: 2026-02-20T01:42:46.300Z
+  updated: 2026-02-20T01:49:29.040Z
 tickets:
   - id: tas-0oTc10Cq
     type: task
@@ -69,9 +69,9 @@ tickets:
   - id: tas-ArT7lw8y
     type: task
     title: Publish to NPM
-    status: todo
+    status: progress
     createdAt: 2026-02-19T18:52:30.049Z
-    updatedAt: 2026-02-19T19:44:53.901Z
+    updatedAt: 2026-02-20T01:44:45.948Z
     description: >-
       Publishing to npm involves preparing your package, logging in, and using the npm publish command.  Ensure your
       project has a valid package.json with required fields like name, version, description, and main. Use npm init to
@@ -462,13 +462,17 @@ tickets:
     createdAt: 2026-02-20T01:14:16.305Z
     updatedAt: 2026-02-20T01:15:00.459Z
     description: Testing real-time notifications
-  - id: tas-F5t3eWw3
-    type: task
-    title: Clean Version Test
+  - id: bug-VCiuqs5L
+    type: bug
+    title: add comment does not reload web ui
     status: todo
-    createdAt: 2026-02-20T01:42:46.299Z
-    updatedAt: 2026-02-20T01:42:46.299Z
-    description: Final test without debug logging
+    createdAt: 2026-02-20T01:47:40.868Z
+    updatedAt: 2026-02-20T01:47:40.868Z
+    description: make sure when the cli is used to add a comment, the web ui is notified and refreshes
+    assignee: use-JTYCH2se
+    sprint: spr-hDifgOv0
+    priority: medium
+    estimate: 2
 sprints:
   - id: spr-GqmnrDyV
     name: JIRA Integration
@@ -484,13 +488,6 @@ sprints:
     updatedAt: 2026-02-19T18:24:27.649Z
     description: Implement all features, fix all bugs, etc.
     goal: Release tkxr!
-  - id: spr-F_JWOvN-
-    name: Test Sprint
-    status: completed
-    createdAt: 2026-02-20T00:15:23.940Z
-    updatedAt: 2026-02-20T00:16:59.614Z
-    description: Sprint for testing archiving functionality
-    goal: Test the sprint archiving feature
 users:
   - id: use-3NNxU7_G
     username: User 2
@@ -504,11 +501,6 @@ users:
     createdAt: 2026-02-19T17:23:45.272Z
     updatedAt: 2026-02-19T17:23:45.272Z
     email: andrew@jacks.com
-  - id: use-1r2EUFtv
-    username: testuser
-    displayName: testuser
-    createdAt: 2026-02-20T01:07:52.054Z
-    updatedAt: 2026-02-20T01:07:52.054Z
 comments:
   - id: com-76hK6vvE
     ticketId: tas-IvIExFTv
@@ -563,3 +555,15 @@ comments:
       (tkxr/archives/archive_abc123.yaml)
     createdAt: 2026-02-20T00:24:55.874Z
     updatedAt: 2026-02-20T00:24:55.874Z
+  - id: com-5i4iFLYg
+    ticketId: tas-ArT7lw8y
+    author: use-JTYCH2se
+    content: 'Critical items needed before NPM publish:'
+    createdAt: 2026-02-20T01:47:56.359Z
+    updatedAt: 2026-02-20T01:47:56.359Z
+  - id: com-sGIrcy1c
+    ticketId: tas-ArT7lw8y
+    author: use-JTYCH2se
+    content: 🚀 NPM Publishing Checklist - READY TO PUBLISH!
+    createdAt: 2026-02-20T01:49:29.040Z
+    updatedAt: 2026-02-20T01:49:29.040Z
