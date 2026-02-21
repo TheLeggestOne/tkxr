@@ -430,7 +430,7 @@
 
 <div class="container mx-auto px-4 py-8">
 	<!-- Header -->
-	<header class="mb-8" role="banner">
+	<header class="mb-8">
 		<div class="flex items-center justify-between">
 			<div>
 				<h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">tkxr</h1>
@@ -439,7 +439,7 @@
 					<span class="text-xs text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">v1.0.0</span>
 				</div>
 			</div>
-			<nav class="flex items-center gap-4" role="navigation" aria-label="Application controls">
+			<nav class="flex items-center gap-4" aria-label="Application controls">
 				<DarkModeToggle />
 				
 				<!-- View Toggle -->
@@ -450,8 +450,8 @@
 							class="view-toggle-btn {viewMode === 'grid' ? 'active' : ''}"
 							on:click={() => viewMode = 'grid'}
 							title="Grid View"
-							aria-pressed={viewMode === 'grid'}
-							role="radiogroup"
+							role="radio"
+							aria-checked={viewMode === 'grid'}
 							aria-label="Grid view"
 						>
 							<Grid size={16} aria-hidden="true" />
@@ -461,8 +461,8 @@
 							class="view-toggle-btn {viewMode === 'kanban' ? 'active' : ''}"
 							on:click={() => viewMode = 'kanban'}
 							title="Kanban Board"
-							aria-pressed={viewMode === 'kanban'}
-							role="radiogroup"
+							role="radio"
+							aria-checked={viewMode === 'kanban'}
 							aria-label="Kanban board view"
 						>
 							<Columns size={16} aria-hidden="true" />
@@ -604,7 +604,7 @@
 	<!-- Tabs (only shown in grid view) -->
 	{#if viewMode === 'grid'}
 		<div class="mb-6">
-			<nav class="flex space-x-1" role="tablist" aria-label="Filter tickets">
+			<div class="flex space-x-1" role="tablist" aria-label="Filter tickets">
 			{#each [
 				{ id: 'all-open', label: 'All Open', count: sprintFilteredTickets.filter(t => t.status !== 'done').length },
 				{ id: 'open-tasks', label: 'Open Tasks', count: sprintFilteredTickets.filter(t => t.type === 'task' && t.status !== 'done').length },
@@ -634,21 +634,22 @@
 					{/if}
 				</button>
 			{/each}
-		</nav>
+		</div>
 	</div>
 	{/if}
 
 	<!-- Tickets Display -->
-	<main id="main-content" role="main" aria-live="polite">
+	<main id="main-content" aria-live="polite">
 		{#if viewMode === 'kanban'}
 			<!-- Kanban Board View -->
-			<section id="tickets-content" 
+			<div id="tickets-content" 
 					 role="tabpanel" 
 					 aria-labelledby="kanban-view"
 					 aria-label="Kanban board view of tickets">
 				<h2 id="kanban-view" class="sr-only">Kanban Board View</h2>
 				<KanbanBoard 
 					tickets={filteredTickets}
+					onUpdateTicket={(ticket) => loadData()}
 					on:updated={loadData}
 					on:edit={(e) => handleEditTicket(e.detail)}
 					on:comments={(e) => handleCommentsTicket(e.detail)}
@@ -657,10 +658,10 @@
 						showCreateModal = true;
 					}}
 				/>
-			</section>
+			</div>
 		{:else}
 			<!-- Grid View -->
-			<section id="tickets-content" 
+			<div id="tickets-content" 
 					 role="tabpanel" 
 					 aria-labelledby="tab-{activeTab}"
 					 aria-label="Grid view of {activeTab} tickets">
@@ -680,7 +681,7 @@
 						</div>
 					{/if}
 				</div>
-			</section>
+			</div>
 		{/if}
 	</main>
 
@@ -727,7 +728,7 @@
 
 <!-- Drawer Overlay -->
 {#if showDrawer}
-	<div class="fixed inset-0 bg-black bg-opacity-50 z-40" on:click={() => showDrawer = false} on:keydown={(e) => e.key === 'Escape' && (showDrawer = false)}></div>
+	<div class="fixed inset-0 bg-black bg-opacity-50 z-40" role="button" tabindex="0" aria-label="Close drawer overlay" on:click={() => showDrawer = false} on:keydown={(e) => e.key === 'Escape' && (showDrawer = false)}></div>
 {/if}
 
 <!-- Drawer -->

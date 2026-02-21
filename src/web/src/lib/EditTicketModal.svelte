@@ -74,11 +74,16 @@
 <div 
 	class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
 	on:click={handleClose}
+	on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClose(); }}
+	tabindex="0"
+	role="button"
+	aria-label="Close modal backdrop"
 >
 	<!-- Modal -->
-	<div 
+	<section
 		class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg mx-auto"
-		on:click|stopPropagation
+		role="dialog"
+		aria-modal="true"
 	>
 		<!-- Header -->
 		<div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
@@ -95,25 +100,29 @@
 		<form on:submit|preventDefault={handleSubmit} class="p-6">
 			<!-- Type Selection -->
 			<div class="mb-4">
-				<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
+				<label for="edit-type-task" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
 				<div class="flex gap-3">
 					<button
+						id="edit-type-task"
 						type="button"
 						class="flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors {formData.type === 'task' 
 							? 'border-blue-500 bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' 
 							: 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 text-gray-700 dark:text-gray-300'}"
 						on:click={() => formData.type = 'task'}
+						aria-pressed={formData.type === 'task'}
 					>
 						<CheckSquare size={18} />
 						<span class="font-medium">Task</span>
 					</button>
 
 					<button
+						id="edit-type-bug"
 						type="button"
 						class="flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors {formData.type === 'bug' 
 							? 'border-red-500 bg-red-50 dark:bg-red-900/50 text-red-700 dark:text-red-300' 
 							: 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 text-gray-700 dark:text-gray-300'}"
 						on:click={() => formData.type = 'bug'}
+						aria-pressed={formData.type === 'bug'}
 					>
 						<Bug size={18} />
 						<span class="font-medium">Bug</span>
@@ -255,5 +264,5 @@
 				</button>
 			</div>
 		</form>
-	</div>
+	</section>
 </div>

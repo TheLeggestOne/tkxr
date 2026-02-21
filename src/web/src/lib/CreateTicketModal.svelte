@@ -107,17 +107,24 @@ export let defaultAssignee = ''; // Default user ID to assign new tickets to
 <!-- Backdrop -->
 <div 
 	class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-	on:click={handleClose}
 	role="dialog"
 	aria-modal="true"
 	aria-labelledby="modal-title"
 	aria-describedby="modal-description"
 >
+	<!-- Backdrop close button for accessibility -->
+	<button
+		type="button"
+		class="absolute inset-0 w-full h-full bg-transparent border-0 p-0 m-0 cursor-pointer"
+		tabindex="0"
+		aria-label="Close modal"
+		on:click={handleClose}
+		style="z-index:51;"
+	></button>
 	<!-- Modal -->
 	<div 
 		bind:this={modalElement}
-		class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg mx-auto"
-		on:click|stopPropagation
+		class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg mx-auto relative"
 		role="document"
 	>
 		<!-- Header -->
@@ -133,7 +140,7 @@ export let defaultAssignee = ''; // Default user ID to assign new tickets to
 		</div>
 
 		<!-- Form -->
-		<form on:submit|preventDefault={handleSubmit} class="p-6" role="form" aria-labelledby="modal-title">
+		<form on:submit|preventDefault={handleSubmit} class="p-6" aria-labelledby="modal-title">
 			<div id="modal-description" class="sr-only">Create a new task or bug ticket with title, description, and other details</div>
 			
 			<!-- Type Selection -->

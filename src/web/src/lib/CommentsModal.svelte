@@ -190,11 +190,13 @@
 	<div 
 		class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
 		on:click|self={handleClose}
+		role="presentation"
+		on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClose(); }}
 	>
 		<!-- Modal content -->
-		<div 
+		<section
 			class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-auto max-h-[90vh] flex flex-col"
-			on:click|stopPropagation
+			role="dialog"
 		>
 			<!-- Header -->
 			<div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-600">
@@ -313,6 +315,6 @@
 					</div>
 				</form>
 			</div>
-		</div>
+		</section>
 	</div>
 {/if}

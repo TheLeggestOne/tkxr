@@ -137,11 +137,16 @@
 <div 
 	class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
 	on:click={handleClose}
+	role="button"
+	tabindex="0"
+	aria-label="Close modal backdrop"
+	on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClose(); }}
 >
 	<!-- Modal -->
-	<div 
+	<section
 		class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl mx-auto max-h-[90vh] overflow-hidden"
-		on:click|stopPropagation
+		role="dialog"
+		aria-modal="true"
 	>
 		<!-- Header -->
 		<div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
@@ -352,6 +357,5 @@
 			>
 				Close
 			</button>
-		</div>
 	</div>
 </div>

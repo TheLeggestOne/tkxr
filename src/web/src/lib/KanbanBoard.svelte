@@ -131,7 +131,6 @@
 			role="region"
 			aria-labelledby="column-header-{column.status}"
 			aria-describedby="column-desc-{column.status}"
-			tabindex="0"
 		>
 			<!-- Column Header -->
 			<header class="flex items-center justify-between mb-4">
@@ -164,7 +163,8 @@
 			<!-- Tickets in this column -->
 			<div class="flex-1 space-y-3 overflow-y-auto" role="list" aria-label="{column.title} tickets">
 				{#each groupedTickets[column.status] as ticket, ticketIndex (ticket.id)}
-					<div 
+					<button 
+						type="button"
 						draggable="true"
 						on:dragstart={(e) => handleDragStart(e, ticket)}
 						on:dragend={handleDragEnd}
@@ -173,10 +173,9 @@
 						class:opacity-50={draggedTicket === ticket}
 						class:ring-2={selectedTicketIndex === ticketIndex && selectedColumn === columnIndex}
 						class:ring-blue-500={selectedTicketIndex === ticketIndex && selectedColumn === columnIndex}
-						role="listitem"
-						tabindex="0"
 						aria-label="Ticket: {ticket.title}. Press Enter to move to next column or use arrow keys to move between columns."
 						aria-describedby="kanban-instructions"
+						tabindex="0"
 					>
 						<TicketCard 
 							{ticket} 
@@ -184,7 +183,7 @@
 							on:edit={() => dispatch('edit', ticket)}
 							on:comments={() => dispatch('comments', ticket)}
 						/>
-					</div>
+					</button>
 				{/each}
 				
 				{#if groupedTickets[column.status].length === 0}
@@ -239,8 +238,7 @@
 	}
 	
 	.kanban-column.drag-over {
-		border: 2px solid rgb(96, 165, 250);
-		border-opacity: 0.5;
+		border: 2px solid rgba(96, 165, 250, 0.5);
 		transform: scale(1.02);
 		box-shadow: 0 0 0 1px rgb(96, 165, 250, 0.5);
 	}
