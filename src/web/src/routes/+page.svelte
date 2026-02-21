@@ -325,9 +325,6 @@
 			if (selectedSprint === 'no-sprint' && ticket.sprint) return false;
 			if (selectedSprint !== 'all' && selectedSprint !== 'no-sprint' && ticket.sprint !== selectedSprint) return false;
 			
-			// User filter
-			if (selectedUser !== 'all' && ticket.assignee !== selectedUser) return false;
-			
 			// Search filter
 			if (searchTerm) {
 				const term = searchTerm.toLowerCase();
@@ -387,11 +384,10 @@
 			return sortOrder === 'desc' ? -compareValue : compareValue;
 		});
 
-	// Calculate stats based on filtered tickets by sprint and user
+	// Calculate stats based on filtered tickets by sprint
 	$: sprintFilteredTickets = $ticketStore.filter(ticket => {
 		if (selectedSprint === 'no-sprint' && ticket.sprint) return false;
 		if (selectedSprint !== 'all' && selectedSprint !== 'no-sprint' && ticket.sprint !== selectedSprint) return false;
-		if (selectedUser !== 'all' && ticket.assignee !== selectedUser) return false;
 		return true;
 	});
 
@@ -491,7 +487,7 @@
 					</button>
 					
 					<!-- Filter Active Badge -->
-					{#if searchTerm || selectedUser !== 'all'}
+					{#if searchTerm}
 						<div class="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white dark:border-gray-800" 
 							 aria-hidden="true" title="Active filters applied"></div>
 					{/if}

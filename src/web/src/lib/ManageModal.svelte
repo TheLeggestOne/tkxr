@@ -136,11 +136,10 @@
 <!-- Backdrop -->
 <div 
 	class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-	on:click={handleClose}
-	role="button"
-	tabindex="0"
-	aria-label="Close modal backdrop"
-	on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClose(); }}
+	on:click={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+	on:keydown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) handleClose(); }}
+	role="dialog"
+	aria-modal="true"
 >
 	<!-- Modal -->
 	<section
