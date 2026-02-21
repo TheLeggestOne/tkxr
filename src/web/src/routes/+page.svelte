@@ -38,6 +38,9 @@
 	let selectedSprint = 'all'; // all, no-sprint, or sprint ID
 	let selectedUser = 'all'; // all, or user ID
 	let searchTerm = '';
+	let sprintSearchTerm = '';
+	let sprintComboboxOpen = false;
+	let sprintComboboxFocusedIndex = -1;
 	let sortBy = 'updated'; // updated, created, title, priority, status
 	let sortOrder = 'desc'; // asc, desc
 	let viewMode = 'grid'; // 'grid' or 'kanban'
@@ -128,6 +131,27 @@
 		enableSettingsPersistence(); // Enable settings saving after component mounts
 		loadData();
 		setupWebSocket();
+
+		// Click outside handler for sprint combobox
+		const handleClickOutside = (event: MouseEvent) => {
+			const target = event.target as HTMLElement;
+			const combobox = document.getElementById('drawer-sprint-combobox');
+			const dropdown = combobox?.nextElementSibling?.nextElementSibling;
+			
+			if (combobox && dropdown && 
+				!combobox.contains(target) && 
+				!dropdown.contains(target)) {
+				sprintComboboxOpen = false;
+				sprintSearchTerm = '';
+				sprintComboboxFocusedIndex = -1;
+			}
+		};
+
+		document.addEventListener('click', handleClickOutside);
+		
+		return () => {
+			document.removeEventListener('click', handleClickOutside);
+		};
 	});
 	
 	onDestroy(() => {
@@ -321,6 +345,53 @@
 		showCommentsModal = true;
 	}
 
+	// Sprint combobox handlers
+	function getSprintDisplayName(sprintId: string) {
+		if (sprintId === 'all') return 'Filter by Sprint...';
+		if (sprintId === 'no-sprint') return 'Unassigned';
+		const sprint = $sprintStore.find(s => s.id === sprintId);
+		return sprint ? sprint.name : 'Unknown Sprint';
+	}
+
+	function selectSprintOption(sprintId: string) {
+		selectedSprint = sprintId;
+		sprintComboboxOpen = false;
+		sprintSearchTerm = '';
+		sprintComboboxFocusedIndex = -1;
+	}
+
+	function clearSprintFilter() {
+		selectedSprint = 'all';
+		sprintSearchTerm = '';
+		sprintComboboxFocusedIndex = -1;
+	}
+
+	function handleSprintComboboxKeydown(e: KeyboardEvent) {
+		const options = [
+			...filteredSprints.map(s => ({ id: s.id, name: s.name })),
+			{ id: 'no-sprint', name: 'Unassigned' }
+		];
+
+		if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			sprintComboboxOpen = true;
+			sprintComboboxFocusedIndex = Math.min(sprintComboboxFocusedIndex + 1, options.length - 1);
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			sprintComboboxFocusedIndex = Math.max(sprintComboboxFocusedIndex - 1, 0);
+		} else if (e.key === 'Enter') {
+			e.preventDefault();
+			if (sprintComboboxFocusedIndex >= 0 && sprintComboboxFocusedIndex < options.length) {
+				selectSprintOption(options[sprintComboboxFocusedIndex].id);
+			}
+		} else if (e.key === 'Escape') {
+			e.preventDefault();
+			sprintComboboxOpen = false;
+			sprintSearchTerm = '';
+			sprintComboboxFocusedIndex = -1;
+		}
+	}
+
 	$: filteredTickets = $ticketStore
 		.filter(ticket => {
 			// Sprint filter
@@ -384,6 +455,26 @@
 			}
 			
 			return sortOrder === 'desc' ? -compareValue : compareValue;
+		});
+
+	// Filter sprints for dropdown (exclude completed, apply search)
+	$: filteredSprints = $sprintStore
+		.filter(s => s.status !== 'completed')
+		.filter(s => {
+			if (!sprintSearchTerm.trim()) return true;
+			const term = sprintSearchTerm.toLowerCase();
+			return s.name.toLowerCase().includes(term) || 
+			       (s.description && s.description.toLowerCase().includes(term));
+		})
+		.sort((a, b) => {
+			// Sort matches to the top
+			if (!sprintSearchTerm.trim()) return 0;
+			const term = sprintSearchTerm.toLowerCase();
+			const aNameMatch = a.name.toLowerCase().includes(term);
+			const bNameMatch = b.name.toLowerCase().includes(term);
+			if (aNameMatch && !bNameMatch) return -1;
+			if (!aNameMatch && bNameMatch) return 1;
+			return a.name.localeCompare(b.name);
 		});
 
 	// Calculate stats based on filtered tickets by sprint
@@ -485,7 +576,6 @@
 						aria-controls="filter-drawer"
 					>
 						<Menu size={20} aria-hidden="true" />
-						<span class="hidden sm:inline">Options</span>
 					</button>
 					
 					<!-- Filter Active Badge -->
@@ -748,7 +838,7 @@
 	<div class="p-6">
 		<!-- Drawer Header -->
 		<div class="flex items-center justify-between mb-6">
-			<h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Search & Filters</h2>
+			<h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Options</h2>
 			<button 
 				class="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
 				on:click={() => showDrawer = false}
@@ -806,22 +896,83 @@
 			</div>
 		</div>
 
-		<!-- Sprint Filter -->
-		<div class="mb-6">
-			<label for="drawer-sprint-filter" class="label">
+		<!-- Sprint Filter Combobox -->
+		<div class="mb-6 relative">
+			<label for="drawer-sprint-combobox" class="label">
 				Filter by Sprint
 			</label>
-			<select 
-				id="drawer-sprint-filter"
-				bind:value={selectedSprint}
-				class="select w-full"
-			>
-				<option value="all">All Tickets</option>
-				<option value="no-sprint">No Sprint</option>
-				{#each $sprintStore.filter(s => s.status !== 'completed') as sprint}
-					<option value={sprint.id} title={sprint.name}>{truncate(sprint.name, 32)}</option>
-				{/each}
-			</select>
+			<div class="relative">
+				<input
+					id="drawer-sprint-combobox"
+					type="text"
+					placeholder={selectedSprint === 'all' ? 'Filter by Sprint...' : ''}
+					value={sprintSearchTerm || (selectedSprint !== 'all' ? getSprintDisplayName(selectedSprint) : '')}
+					on:input={(e) => sprintSearchTerm = e.currentTarget.value}
+					on:focus={() => { sprintComboboxOpen = true; sprintComboboxFocusedIndex = -1; }}
+					on:keydown={handleSprintComboboxKeydown}
+					on:click={() => sprintComboboxOpen = true}
+					class="input w-full {selectedSprint !== 'all' ? 'pr-16' : 'pr-8'}"
+					autocomplete="off"
+				>
+				{#if selectedSprint !== 'all'}
+					<button
+						type="button"
+						class="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+						on:click={clearSprintFilter}
+						aria-label="Clear sprint filter"
+					>
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+						</svg>
+					</button>
+				{/if}
+				<button
+					type="button"
+					class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+					on:click={() => sprintComboboxOpen = !sprintComboboxOpen}
+					aria-label="Toggle sprint dropdown"
+				>
+					<svg class="w-4 h-4 transition-transform {sprintComboboxOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+					</svg>
+				</button>
+				
+				{#if sprintComboboxOpen}
+					<div 
+						class="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+						on:click|stopPropagation
+					>
+						{#each filteredSprints as sprint, i}
+							<!-- svelte-ignore a11y-click-events-have-key-events -->
+							<!-- svelte-ignore a11y-no-static-element-interactions -->
+							<div
+								class="px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer {sprintComboboxFocusedIndex === i ? 'bg-gray-100 dark:bg-gray-700' : ''}"
+								on:click={() => selectSprintOption(sprint.id)}
+								on:mouseenter={() => sprintComboboxFocusedIndex = i}
+							>
+								<div class="text-sm text-gray-900 dark:text-gray-100">{sprint.name}</div>
+								{#if sprint.description}
+									<div class="text-xs text-gray-500 dark:text-gray-400 truncate">{sprint.description}</div>
+								{/if}
+							</div>
+						{/each}
+						<!-- svelte-ignore a11y-click-events-have-key-events -->
+						<!-- svelte-ignore a11y-no-static-element-interactions -->
+						<div
+							class="px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer {sprintComboboxFocusedIndex === filteredSprints.length ? 'bg-gray-100 dark:bg-gray-700' : ''}"
+							on:click={() => selectSprintOption('no-sprint')}
+							on:mouseenter={() => sprintComboboxFocusedIndex = filteredSprints.length}
+						>
+							<div class="text-sm text-gray-900 dark:text-gray-100">Unassigned</div>
+						</div>
+						{#if filteredSprints.length === 0 && sprintSearchTerm.trim()}
+							<div class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 italic">
+								No sprints found
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
 		</div>
 
 		<!-- User Filter -->
