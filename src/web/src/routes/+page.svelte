@@ -636,7 +636,7 @@
 		<h2 id="ticket-stats-title" class="sr-only">Ticket Statistics</h2>
 		<button 
 			class="card hover:shadow-lg transition-shadow cursor-pointer text-left w-full"
-			on:click={() => activeTab = 'all'}
+			on:click={() => { activeTab = 'all'; viewMode = 'grid'; }}
 			title="View all tickets"
 			aria-label="View all tickets: {sprintFilteredTickets.length} total"
 			aria-pressed={activeTab === 'all'}
@@ -654,7 +654,7 @@
 
 		<button 
 			class="card hover:shadow-lg transition-shadow cursor-pointer text-left w-full"
-			on:click={() => activeTab = 'open-bugs'}
+			on:click={() => { activeTab = 'open-bugs'; viewMode = 'grid'; }}
 			title="View open bugs"
 			aria-label="View open bugs: {sprintFilteredTickets.filter(t => t.type === 'bug' && t.status !== 'done').length} total"
 			aria-pressed={activeTab === 'open-bugs'}
@@ -672,7 +672,7 @@
 
 		<button 
 			class="card hover:shadow-lg transition-shadow cursor-pointer text-left w-full"
-			on:click={() => activeTab = 'progress'}
+			on:click={() => { activeTab = 'progress'; viewMode = 'grid'; }}
 			title="View tickets in progress"
 			aria-label="View tickets in progress: {sprintFilteredTickets.filter(t => t.status === 'progress').length} total"
 			aria-pressed={activeTab === 'progress'}
@@ -690,7 +690,7 @@
 
 		<button 
 			class="card hover:shadow-lg transition-shadow cursor-pointer text-left w-full"
-			on:click={() => activeTab = 'done'}
+			on:click={() => { activeTab = 'done'; viewMode = 'grid'; }}
 			title="View completed tickets"
 			aria-label="View completed tickets: {sprintFilteredTickets.filter(t => t.status === 'done').length} total"
 			aria-pressed={activeTab === 'done'}
