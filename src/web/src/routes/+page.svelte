@@ -132,6 +132,12 @@
 		cleanupWebSocket();
 	});
 
+	// Helper function to truncate long text with ellipsis
+	function truncate(text: string, maxLength: number): string {
+		if (text.length <= maxLength) return text;
+		return text.substring(0, maxLength - 3) + '...';
+	}
+
 	async function loadData(retryCount = 0) {
 		try {
 			console.debug('Loading data...', retryCount > 0 ? `(retry ${retryCount})` : '');
@@ -807,7 +813,7 @@
 				<option value="all">All Tickets</option>
 				<option value="no-sprint">No Sprint</option>
 				{#each $sprintStore.filter(s => s.status !== 'completed') as sprint}
-					<option value={sprint.id}>{sprint.name}</option>
+					<option value={sprint.id} title={sprint.name}>{truncate(sprint.name, 32)}</option>
 				{/each}
 			</select>
 		</div>
@@ -821,11 +827,16 @@
 				id="drawer-user-filter"
 				bind:value={selectedUser}
 				class="select w-full"
+				disabled={$userStore.length === 0}
 			>
-				<option value="all">All Users</option>
-				{#each $userStore as user}
-					<option value={user.id}>{user.displayName} (@{user.username})</option>
-				{/each}
+				{#if $userStore.length === 0}
+					<option value="all">No Users</option>
+				{:else}
+					<option value="all">All Users</option>
+					{#each $userStore as user}
+						<option value={user.id}>{user.displayName} (@{user.username})</option>
+					{/each}
+				{/if}
 			</select>
 		</div>
 
