@@ -102,7 +102,7 @@
 	async function updateSprintStatus(id: string, status: string) {
 		try {
 			const response = await fetch(`/api/sprints/${id}/status`, {
-				method: 'PATCH',
+				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ status })
 			});
