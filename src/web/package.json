@@ -1,6 +1,6 @@
 {
-  "name": "tkxr-web",
-  "version": "1.1.10",
+  "name": "@legdev/tkxr-web",
+  "version": "1.1.11",
   "private": true,
   "scripts": {
     "build": "vite build",
