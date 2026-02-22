@@ -198,13 +198,6 @@ The MCP server provides these tools for AI assistants:
 - `list_sprints` / `create_sprint` / `update_sprint_status` - Sprint management
 - `list_comments` / `add_comment` - Comment management
 
-- `list_tickets` - List all tickets with optional filtering
-- `create_ticket` - Create new tasks or bugs
-- `update_ticket_status` - Change ticket status
-- `delete_ticket` - Remove tickets
-- `list_users` / `create_user` - User management
-- `list_sprints` / `create_sprint` / `update_sprint_status` - Sprint management
-
 ### AI Usage Examples
 
 With the MCP server running, AI assistants can:
