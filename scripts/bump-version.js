@@ -57,16 +57,16 @@ try {
   const rootPkgPath = join(__dirname, '..', 'package.json');
   const rootPkg = JSON.parse(readFileSync(rootPkgPath, 'utf8'));
   const currentVersion = rootPkg.version || '0.0.0';
-  
+
   // Bump patch version
   const newVersion = bumpPatch(currentVersion);
-  
+
   console.log(`🔢 Version bump: ${currentVersion} → ${newVersion}`);
-  
+
   // Update root package.json
   updatePackageVersion(rootPkgPath, newVersion);
   console.log('   ✓ Updated root package.json');
-  
+
   // Update web package.json
   const webPkgPath = join(__dirname, '..', 'src', 'web', 'package.json');
   try {
@@ -75,6 +75,12 @@ try {
   } catch (error) {
     console.log('   ⚠️  Could not update web package.json');
   }
+
+  // After version bump, re-read updated package.json and copy to dist/
+  const updatedRootPkg = JSON.parse(readFileSync(rootPkgPath, 'utf8'));
+  const distPkgPath = join(__dirname, '..', 'dist', 'package.json');
+  writeFileSync(distPkgPath, JSON.stringify(updatedRootPkg, null, 2) + '\n', 'utf8');
+  console.log('   ✓ Copied updated package.json to dist/')
 } catch (error) {
   console.error('❌ Error bumping version:', error.message);
   process.exit(1);

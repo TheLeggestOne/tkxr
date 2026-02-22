@@ -23,15 +23,15 @@ export async function startServer(args: ServeArgs): Promise<void> {
   
   const storage = await createStorage();
 
-  // Read version from package.json
+  // Read version from dist/package.json
   let version = '1.0.0'; // fallback
   try {
-    const pkgPath = path.join(process.cwd(), 'package.json');
+    const pkgPath = path.join(process.cwd(), 'dist', 'package.json');
     const pkgContent = await fs.readFile(pkgPath, 'utf8');
     const pkg = JSON.parse(pkgContent);
     version = pkg.version || '1.0.0';
   } catch (error) {
-    console.debug('Could not read package.json version:', error);
+    console.debug('Could not read dist/package.json version:', error);
   }
 
   // Update notifier URL for this server instance

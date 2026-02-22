@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.13] - 2026-02-22
+### Changed
+- CLI now reads version from dist/package.json for npm deployment
+- Build script copies updated package.json to dist/ after version bump
+- Package is now fully self-sufficient for CLI and web deployment
+
 ## [1.1.10] - 2026-02-22
 ### Added
 - Open Tasks stat button to top row dashboard
