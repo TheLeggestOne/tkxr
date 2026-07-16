@@ -72,11 +72,12 @@
 
   async function reload() {
     try {
-      const [tRes, sRes, uRes, cRes] = await Promise.all([
+      const [tRes, sRes, uRes, cRes, ccRes] = await Promise.all([
         fetch('/api/tickets'),
         fetch('/api/sprints'),
         fetch('/api/users'),
         fetch('/api/config'),
+        fetch('/api/comments/counts'),
       ]);
       if (tRes.ok) {
         const tickets = (await tRes.json()).map(normalizeTicket);
@@ -88,6 +89,16 @@
         const j = await cRes.json();
         if (j.version) version = `v${j.version}`;
       }
+      if (ccRes.ok) {
+        commentCounts = await ccRes.json();
+      }
+    } catch { /* noop */ }
+  }
+
+  async function refreshCommentCounts() {
+    try {
+      const res = await fetch('/api/comments/counts');
+      if (res.ok) commentCounts = await res.json();
     } catch { /* noop */ }
   }
 
@@ -101,6 +112,11 @@
         try {
           const m = JSON.parse(ev.data);
           if (m.type === 'pong') return;
+          // Comment events don't change tickets/sprints/users — refresh counts only.
+          if (m.type === 'comment_created' || m.type === 'comment_deleted') {
+            refreshCommentCounts();
+            return;
+          }
           reload();
         } catch { /* noop */ }
       };

@@ -286,6 +286,18 @@ export async function startServer(args: ServeArgs): Promise<void> {
   });
 
   // Comments API
+  // Aggregate comment counts for every ticket. Used by the board so
+  // BoardCard's comment badge lights up without one fetch per ticket.
+  app.get('/api/comments/counts', async (req, res) => {
+    try {
+      await storage.loadProject();
+      const counts = await storage.getCommentCounts();
+      res.json(counts);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to load comment counts' });
+    }
+  });
+
   app.get('/api/tickets/:ticketId/comments', async (req, res) => {
     try {
       // Reload data from disk to ensure we have the latest changes
