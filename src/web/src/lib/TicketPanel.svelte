@@ -3,6 +3,7 @@
   import type { Sprint, Ticket, TicketComment, User } from './stores';
   import { avatarColorFor, initials, PRIORITY_META, relativeTime, STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from './util';
   import { copyPrompt, copyToClipboard, showToast } from './clipboard';
+  import { currentUserId } from './currentUser';
   import { ticketAskPrompt, workOnTicketPrompt } from './prompts';
   import X from './icons/X.svelte';
   import Sparkles from './icons/Sparkles.svelte';
@@ -20,6 +21,8 @@
   // Initialize draft once from the ticket (or create defaults). Parent uses {#key selectedTicketId}
   // to re-mount the panel on ticket change, so no reactive reset is needed — and having one
   // would clobber the user's in-flight edits every time an unrelated WS event triggers reload().
+  // Assignee fallback order: explicit prop (from an active sidebar filter) → operator identity
+  // from the currentUser store → unassigned. We intentionally do NOT fall back to users[0].
   let draft: Partial<Ticket> = ticket && !isCreate
     ? { ...ticket }
     : {
@@ -28,7 +31,7 @@
         description: '',
         priority: 'medium',
         status: 'backlog',
-        assignee: defaultAssignee || null,
+        assignee: defaultAssignee || $currentUserId || null,
         sprint: defaultSprint || null,
         estimate: 1,
       };
@@ -274,7 +277,9 @@
     if (!ticket) return;
     const content = commentDraft.trim();
     if (!content) return;
-    const author = users[0]?.id || 'anon';
+    // Prefer the operator's chosen identity; fall back to first known user so
+    // comments don't silently get attributed to 'anon' in single-user setups.
+    const author = $currentUserId || users[0]?.id || 'anon';
     try {
       const res = await fetch(`/api/tickets/${ticket.id}/comments`, {
         method: 'POST',
