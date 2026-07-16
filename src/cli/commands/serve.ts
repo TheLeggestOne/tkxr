@@ -14,7 +14,7 @@ import {
   InitializeRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { createStorage } from '../../core/storage.js';
+import { createStorage, type TicketQueryOptions, type TicketSortBy } from '../../core/storage.js';
 import { notifier } from '../../core/notifier.js';
 import { SERVER_INSTRUCTIONS, TOOL_MAP, TOOLS, type ToolContext } from '../../mcp/tools.js';
 import { createSprintWorktree, createWorktree, getRepoRoot, isGitRepo, listWorktrees, removeWorktree } from '../../core/worktree.js';
@@ -158,14 +158,134 @@ export async function startServer(args: ServeArgs): Promise<void> {
   }
 
   // API Routes
+  // GET /api/tickets
+  //
+  // Two response shapes for backwards compat (see tas-AEduZ-wc):
+  //   1. No query params  -> returns `Ticket[]` (unchanged legacy shape).
+  //      Callers: CLI `list` command, any external script that just wants
+  //      "the whole list", plus older web builds during rollout.
+  //   2. Any of the paging/filter params present -> returns
+  //      `{ items: Ticket[], nextCursor: string|null, total: number }`.
+  //      `total` is the *filtered* count so the toolbar "N shown" counter
+  //      stays honest against the same filter set.
+  //
+  // Supported query params (all optional):
+  //   limit    — page size, default 50, capped at 200
+  //   cursor   — opaque base64url token from the previous page's `nextCursor`
+  //   q        — case-insensitive substring against title + description + id
+  //   sprint   — sprint id, the literal `none` for tickets with no sprint
+  //   assignee — user id, the literal `none` for unassigned tickets
+  //   type     — `task` | `bug`
+  //   status   — single `TicketStatus` (used by board per-column paging later)
+  //   sortBy   — `updated` (default) | `created` | `priority` | `title`
+  //              Priority sort keeps the client's bug-over-task tiebreak.
+  const PAGING_PARAM_KEYS = ['limit', 'cursor', 'q', 'sprint', 'assignee', 'type', 'status', 'sortBy'] as const;
+  const VALID_SORT_BY = new Set<TicketSortBy>(['updated', 'created', 'priority', 'title']);
+  const VALID_TYPES = new Set(['task', 'bug']);
+  const VALID_STATUSES = new Set(['backlog', 'progress', 'review', 'blocked', 'done']);
+
   app.get('/api/tickets', async (req, res) => {
     try {
       // Reload data from disk to ensure we have the latest changes
       await storage.loadProject();
-      const tickets = await storage.getAllTickets();
-      res.json(tickets);
+
+      const hasPagingParams = PAGING_PARAM_KEYS.some(k => typeof req.query[k] === 'string' && (req.query[k] as string).length > 0);
+      if (!hasPagingParams) {
+        // Legacy path: return the whole list untouched so the CLI list command
+        // and any external scripts keep working with the pre-paging shape.
+        const tickets = await storage.getAllTickets();
+        return res.json(tickets);
+      }
+
+      const opts: TicketQueryOptions = {};
+      if (typeof req.query.limit === 'string') {
+        const n = Number(req.query.limit);
+        if (!Number.isFinite(n) || n <= 0) {
+          return res.status(400).json({ error: { code: 'bad_input', message: 'limit must be a positive number' } });
+        }
+        opts.limit = n;
+      }
+      if (typeof req.query.cursor === 'string' && req.query.cursor.length > 0) {
+        opts.cursor = req.query.cursor;
+      }
+      if (typeof req.query.q === 'string' && req.query.q.length > 0) {
+        opts.q = req.query.q;
+      }
+      if (typeof req.query.sprint === 'string' && req.query.sprint.length > 0) {
+        opts.sprint = req.query.sprint;
+      }
+      if (typeof req.query.assignee === 'string' && req.query.assignee.length > 0) {
+        opts.assignee = req.query.assignee;
+      }
+      if (typeof req.query.type === 'string' && req.query.type.length > 0) {
+        if (!VALID_TYPES.has(req.query.type)) {
+          return res.status(400).json({ error: { code: 'bad_input', message: 'type must be task or bug' } });
+        }
+        opts.type = req.query.type as any;
+      }
+      if (typeof req.query.status === 'string' && req.query.status.length > 0) {
+        if (!VALID_STATUSES.has(req.query.status)) {
+          return res.status(400).json({ error: { code: 'bad_input', message: `status must be one of ${[...VALID_STATUSES].join(', ')}` } });
+        }
+        opts.status = req.query.status as any;
+      }
+      if (typeof req.query.sortBy === 'string' && req.query.sortBy.length > 0) {
+        if (!VALID_SORT_BY.has(req.query.sortBy as TicketSortBy)) {
+          return res.status(400).json({ error: { code: 'bad_input', message: `sortBy must be one of ${[...VALID_SORT_BY].join(', ')}` } });
+        }
+        opts.sortBy = req.query.sortBy as TicketSortBy;
+      }
+
+      const result = await storage.queryTickets(opts);
+      res.json(result);
     } catch (error) {
       res.status(500).json({ error: 'Failed to load tickets' });
+    }
+  });
+
+  // Aggregate counts for sidebar badges, triage pill, and Board column badges.
+  // Cheap single-pass over `getAllTickets()` — no new storage plumbing. Clients
+  // refetch this on any `ticket_*` WS event; the handler broadcasts nothing.
+  // Registered BEFORE `/api/tickets/:type` so Express doesn't route `summary`
+  // into the type handler (which only accepts 'task' | 'bug').
+  // See tas-4MNJ9qP5.
+  app.get('/api/tickets/summary', async (req, res) => {
+    try {
+      // Reload from disk so we agree with whatever `/api/tickets` last read.
+      await storage.loadProject();
+      const tickets = await storage.getAllTickets();
+
+      const byStatus: Record<'backlog' | 'progress' | 'review' | 'blocked' | 'done', number> = {
+        backlog: 0,
+        progress: 0,
+        review: 0,
+        blocked: 0,
+        done: 0,
+      };
+      let unassignedOpen = 0;
+      let criticalOpen = 0;
+
+      for (const t of tickets) {
+        // Defensive: unknown statuses just don't get counted in byStatus.
+        if (t.status in byStatus) {
+          byStatus[t.status as keyof typeof byStatus]++;
+        }
+        const isOpen = t.status !== 'done';
+        if (isOpen && !t.assignee) unassignedOpen++;
+        if (isOpen && t.priority === 'critical') criticalOpen++;
+      }
+
+      const total = tickets.length;
+      const counts = { ...byStatus, total };
+      const triage = {
+        unassignedOpen,
+        criticalOpen,
+        backlogCount: byStatus.backlog,
+      };
+
+      res.json({ counts, triage, byStatus });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to load ticket summary' });
     }
   });
 
