@@ -4,7 +4,7 @@
   import { claudeConfig } from './stores';
   import { avatarColorFor, initials, sprintDotColor, STATUS_COLOR } from './util';
   import { copyToClipboard, showToast } from './clipboard';
-  import { orchestrateSprintPrompt } from './prompts';
+  import { orchestrateSprintPrompt, sprintBreakdownPrompt } from './prompts';
   import { runPrompt } from './claudeRun';
   import X from './icons/X.svelte';
   import Plus from './icons/Plus.svelte';
@@ -157,6 +157,16 @@
     });
   }
 
+  $: canPlan = !!sprint && !!sprint.goal && sprint.goal.trim().length > 0 && sprint.status === 'planning';
+
+  function runPlan() {
+    if (!sprint || !canPlan) return;
+    runPrompt(sprintBreakdownPrompt(sprint, tickets, users), {
+      cwd: sprint.worktree?.path,
+      label: 'Plan ' + sprint.name,
+    });
+  }
+
   async function assignToSprint(t: Ticket) {
     if (!sprint) return;
     try {
@@ -274,6 +284,26 @@
         <div class="wt-hint">A dedicated feature branch + checkout for this sprint. New ticket worktrees created after this will branch off the sprint branch. Default: <code>tkxr/sprint/{sprint.id}</code>.</div>
         <button class="btn btn-primary" on:click={createSprintWorktree} disabled={worktreeBusy}>Create sprint worktree</button>
       {/if}
+    </div>
+
+    <div class="orch-card">
+      <div class="orch-head">
+        <Sparkles size={14} color="var(--ai)" />
+        <span>Plan sprint with Claude</span>
+      </div>
+      <div class="orch-hint">
+        {#if canPlan}
+          Sends a prompt that asks Claude to research the sprint goal, then create child tickets (with waves via <code>dependsOn</code>). Guardrails: won't touch existing tickets, won't flip statuses, capped at ~12 new tickets.
+        {:else if !sprint.goal || !sprint.goal.trim()}
+          Set a sprint <strong>goal</strong> above to enable planning.
+        {:else if sprint.status !== 'planning'}
+          Only available while the sprint is in <strong>planning</strong>.
+        {/if}
+      </div>
+      <button class="orch-btn" on:click={runPlan} disabled={!canPlan}>
+        <Sparkles size={14} color="#fff" />
+        <span>{$claudeConfig?.available ? 'Plan with Claude' : 'Copy plan prompt'}</span>
+      </button>
     </div>
 
     <div class="orch-card">
@@ -497,7 +527,14 @@
     cursor: pointer;
     transition: opacity .12s;
   }
-  .orch-btn:hover { opacity: .9; }
+  .orch-btn:hover:not(:disabled) { opacity: .9; }
+  .orch-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .orch-hint code {
+    background: var(--surface);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 10.5px;
+  }
 
   .burn {
     background: var(--elevated);
