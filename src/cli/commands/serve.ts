@@ -168,6 +168,52 @@ export async function startServer(args: ServeArgs): Promise<void> {
     }
   });
 
+  // Aggregate counts for sidebar badges, triage pill, and Board column badges.
+  // Cheap single-pass over `getAllTickets()` — no new storage plumbing. Clients
+  // refetch this on any `ticket_*` WS event; the handler broadcasts nothing.
+  // Registered BEFORE `/api/tickets/:type` so Express doesn't route `summary`
+  // into the type handler (which only accepts 'task' | 'bug').
+  // See tas-4MNJ9qP5.
+  app.get('/api/tickets/summary', async (req, res) => {
+    try {
+      // Reload from disk so we agree with whatever `/api/tickets` last read.
+      await storage.loadProject();
+      const tickets = await storage.getAllTickets();
+
+      const byStatus: Record<'backlog' | 'progress' | 'review' | 'blocked' | 'done', number> = {
+        backlog: 0,
+        progress: 0,
+        review: 0,
+        blocked: 0,
+        done: 0,
+      };
+      let unassignedOpen = 0;
+      let criticalOpen = 0;
+
+      for (const t of tickets) {
+        // Defensive: unknown statuses just don't get counted in byStatus.
+        if (t.status in byStatus) {
+          byStatus[t.status as keyof typeof byStatus]++;
+        }
+        const isOpen = t.status !== 'done';
+        if (isOpen && !t.assignee) unassignedOpen++;
+        if (isOpen && t.priority === 'critical') criticalOpen++;
+      }
+
+      const total = tickets.length;
+      const counts = { ...byStatus, total };
+      const triage = {
+        unassignedOpen,
+        criticalOpen,
+        backlogCount: byStatus.backlog,
+      };
+
+      res.json({ counts, triage, byStatus });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to load ticket summary' });
+    }
+  });
+
   app.get('/api/tickets/:type', async (req, res) => {
     try {
       const { type } = req.params;
