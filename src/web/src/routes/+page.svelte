@@ -210,6 +210,21 @@
   // as `filtered` so the existing template bindings stay put.
   $: filtered = $pagedItems as Ticket[];
 
+  // Board owns its own per-column paged stores (tas-MKYRoS6x) and takes the
+  // toolbar filter state as a `query` prop; recompute it reactively so the
+  // Board's five column stores reset together on any filter change.
+  $: boardQuery = (() => {
+    // Re-reference to make Svelte tracking explicit.
+    void search; void activeSprint; void activeUser; void typeFilter; void sortBy;
+    const q: PagedTicketQuery = {};
+    if (search) q.q = search;
+    if (activeSprint !== 'all') q.sprint = activeSprint;
+    if (activeUser !== 'all') q.assignee = activeUser;
+    if (typeFilter !== 'all') q.type = typeFilter;
+    q.sortBy = sortBy as TicketSortBy;
+    return q;
+  })();
+
   $: contextTitle = (() => {
     if (activeSprint !== 'all' && activeSprint !== 'none') {
       const s = $sprintStore.find((sp: Sprint) => sp.id === activeSprint);
@@ -356,7 +371,7 @@
     <div class="view">
       {#if view === 'board'}
         <Board
-          tickets={filtered}
+          query={boardQuery}
           sprints={$sprintStore}
           users={$userStore}
           {commentCounts}
