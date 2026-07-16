@@ -18,6 +18,7 @@ import { createStorage } from '../../core/storage.js';
 import { notifier } from '../../core/notifier.js';
 import { SERVER_INSTRUCTIONS, TOOL_MAP, TOOLS, type ToolContext } from '../../mcp/tools.js';
 import { createSprintWorktree, createWorktree, getRepoRoot, isGitRepo, listWorktrees, removeWorktree } from '../../core/worktree.js';
+import { getBranchInsights, getRemoteInfo } from '../../core/gitInsights.js';
 import {
   discoverClaude,
   killWithGrace,
@@ -860,6 +861,69 @@ export async function startServer(args: ServeArgs): Promise<void> {
       res.json({ ticket: updated, removed: wt });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to remove worktree' });
+    }
+  });
+
+  // -------------------- Git insights (read-only) --------------------
+  // Surfaces branch state for tickets / sprints so the UI can show commits
+  // that live in per-ticket / per-sprint worktrees (invisible from the user's
+  // primary VSCode window). Never mutates git state.
+
+  app.get('/api/git/remote', async (req, res) => {
+    try {
+      const info = await getRemoteInfo();
+      res.json({ remote: info });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to read remote' });
+    }
+  });
+
+  app.get('/api/tickets/:id/git', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const found = await storage.findTicket(id);
+      if (!found) return res.status(404).json({ error: 'Ticket not found' });
+      const wt = found.ticket.worktree;
+      if (!wt) return res.status(409).json({ error: 'Ticket has no worktree' });
+
+      // Prefer the sprint branch as base when the ticket is in a sprint that
+      // has its own worktree. Otherwise fall back to the repo default (main).
+      let base: string | undefined;
+      if (found.ticket.sprint) {
+        const sprint = (await storage.getSprints()).find(s => s.id === found.ticket.sprint);
+        if (sprint?.worktree) base = sprint.worktree.branch;
+      }
+
+      const remote = await getRemoteInfo();
+      const insights = await getBranchInsights({
+        cwd: wt.path,
+        branch: wt.branch,
+        base,
+        remote,
+      });
+      res.json({ insights, remote });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to read branch insights' });
+    }
+  });
+
+  app.get('/api/sprints/:id/git', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const sprint = (await storage.getSprints()).find(s => s.id === id);
+      if (!sprint) return res.status(404).json({ error: 'Sprint not found' });
+      const wt = sprint.worktree;
+      if (!wt) return res.status(409).json({ error: 'Sprint has no worktree' });
+
+      const remote = await getRemoteInfo();
+      const insights = await getBranchInsights({
+        cwd: wt.path,
+        branch: wt.branch,
+        remote,
+      });
+      res.json({ insights, remote });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to read branch insights' });
     }
   });
 

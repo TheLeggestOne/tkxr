@@ -8,6 +8,7 @@
   import { commitTicketPrompt, ticketAskPrompt, workOnTicketPrompt } from './prompts';
   import X from './icons/X.svelte';
   import Sparkles from './icons/Sparkles.svelte';
+  import BranchInsights from './BranchInsights.svelte';
 
   export let ticket: Ticket | null = null;
   export let isCreate = false;
@@ -556,6 +557,10 @@
         <button class="btn btn-primary" on:click={createWorktree} disabled={worktreeBusy}>Create worktree</button>
       {/if}
     </div>
+
+    {#if ticket.worktree}
+      <BranchInsights scope="ticket" id={ticket.id} worktreePath={ticket.worktree.path} />
+    {/if}
 
     <div class="ai-card">
       <div class="ai-head">

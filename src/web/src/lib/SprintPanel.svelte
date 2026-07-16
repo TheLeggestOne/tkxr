@@ -5,6 +5,7 @@
   import { avatarColorFor, initials, sprintDotColor, STATUS_COLOR } from './util';
   import { copyToClipboard, showToast } from './clipboard';
   import { commitSprintPrompt, orchestrateSprintPrompt, sprintBreakdownPrompt } from './prompts';
+  import BranchInsights from './BranchInsights.svelte';
   import { runPrompt } from './claudeRun';
   import X from './icons/X.svelte';
   import Plus from './icons/Plus.svelte';
@@ -293,6 +294,10 @@
         <button class="btn btn-primary" on:click={createSprintWorktree} disabled={worktreeBusy}>Create sprint worktree</button>
       {/if}
     </div>
+
+    {#if sprint.worktree}
+      <BranchInsights scope="sprint" id={sprint.id} worktreePath={sprint.worktree.path} />
+    {/if}
 
     <div class="orch-card">
       <div class="orch-head">
