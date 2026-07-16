@@ -58,6 +58,32 @@
     } catch { /* noop */ }
   }
 
+  // If the selected sprint/user disappears (deleted from another client or CLI),
+  // fall back to 'all' so the board doesn't silently go empty. Also close any
+  // open panel targeting the now-deleted entity so we don't render stale state.
+  $: if (activeSprint !== 'all' && activeSprint !== 'none'
+      && $sprintStore.length > 0
+      && !($sprintStore as Sprint[]).some(s => s.id === activeSprint)) {
+    activeSprint = 'all';
+  }
+  $: if (activeUser !== 'all' && activeUser !== 'none'
+      && $userStore.length > 0
+      && !($userStore as User[]).some(u => u.id === activeUser)) {
+    activeUser = 'all';
+  }
+  $: if (selectedUserId !== null
+      && ($userStore as User[]).length > 0
+      && !($userStore as User[]).some(u => u.id === selectedUserId)) {
+    selectedUserId = null;
+    if (panel === 'user') panel = null;
+  }
+  $: if (selectedSprintId !== null
+      && ($sprintStore as Sprint[]).length > 0
+      && !($sprintStore as Sprint[]).some(s => s.id === selectedSprintId)) {
+    selectedSprintId = null;
+    if (panel === 'sprint') panel = null;
+  }
+
   onMount(() => {
     reload();
     setupWs();
@@ -72,11 +98,12 @@
 
   async function reload() {
     try {
-      const [tRes, sRes, uRes, cRes] = await Promise.all([
+      const [tRes, sRes, uRes, cRes, ccRes] = await Promise.all([
         fetch('/api/tickets'),
         fetch('/api/sprints'),
         fetch('/api/users'),
         fetch('/api/config'),
+        fetch('/api/comments/counts'),
       ]);
       if (tRes.ok) {
         const tickets = (await tRes.json()).map(normalizeTicket);
@@ -88,6 +115,16 @@
         const j = await cRes.json();
         if (j.version) version = `v${j.version}`;
       }
+      if (ccRes.ok) {
+        commentCounts = await ccRes.json();
+      }
+    } catch { /* noop */ }
+  }
+
+  async function refreshCommentCounts() {
+    try {
+      const res = await fetch('/api/comments/counts');
+      if (res.ok) commentCounts = await res.json();
     } catch { /* noop */ }
   }
 
@@ -101,6 +138,11 @@
         try {
           const m = JSON.parse(ev.data);
           if (m.type === 'pong') return;
+          // Comment events don't change tickets/sprints/users — refresh counts only.
+          if (m.type === 'comment_created' || m.type === 'comment_deleted') {
+            refreshCommentCounts();
+            return;
+          }
           reload();
         } catch { /* noop */ }
       };

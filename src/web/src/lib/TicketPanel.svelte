@@ -3,6 +3,7 @@
   import type { Sprint, Ticket, TicketComment, User } from './stores';
   import { avatarColorFor, initials, PRIORITY_META, relativeTime, STATUS_COLOR, STATUS_LABEL, STATUS_ORDER } from './util';
   import { copyPrompt, copyToClipboard, showToast } from './clipboard';
+  import { currentUserId } from './currentUser';
   import { ticketAskPrompt, workOnTicketPrompt } from './prompts';
   import X from './icons/X.svelte';
   import Sparkles from './icons/Sparkles.svelte';
@@ -20,6 +21,8 @@
   // Initialize draft once from the ticket (or create defaults). Parent uses {#key selectedTicketId}
   // to re-mount the panel on ticket change, so no reactive reset is needed — and having one
   // would clobber the user's in-flight edits every time an unrelated WS event triggers reload().
+  // Assignee fallback order: explicit prop (from an active sidebar filter) → operator identity
+  // from the currentUser store → unassigned. We intentionally do NOT fall back to users[0].
   let draft: Partial<Ticket> = ticket && !isCreate
     ? { ...ticket }
     : {
@@ -28,7 +31,7 @@
         description: '',
         priority: 'medium',
         status: 'backlog',
-        assignee: defaultAssignee || null,
+        assignee: defaultAssignee || $currentUserId || null,
         sprint: defaultSprint || null,
         estimate: 1,
       };
@@ -39,7 +42,9 @@
   let saveTimer: number | null = null;
   let depInput = '';
   let depSuggestOpen = false;
+  let labelInput = '';
 
+  $: labelList = (draft.labels || []) as string[];
   $: depList = (draft.dependsOn || []) as string[];
   $: depSuggestions = (() => {
     const q = depInput.trim().toLowerCase();
@@ -73,6 +78,32 @@
       else if (depInput.trim()) addDep(depInput.trim());
     } else if (e.key === 'Escape') {
       depSuggestOpen = false;
+    }
+  }
+
+  function addLabel(raw: string) {
+    const clean = raw.trim();
+    if (!clean) return;
+    if (labelList.includes(clean)) {
+      labelInput = '';
+      return;
+    }
+    const next = [...labelList, clean];
+    draft.labels = next;
+    labelInput = '';
+    if (!isCreate) schedulePatch({ labels: next });
+  }
+  function removeLabel(label: string) {
+    const next = labelList.filter(l => l !== label);
+    draft.labels = next;
+    if (!isCreate) schedulePatch({ labels: next });
+  }
+  function onLabelKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      if (labelInput.trim()) addLabel(labelInput);
+    } else if (e.key === 'Backspace' && !labelInput && labelList.length > 0) {
+      removeLabel(labelList[labelList.length - 1]);
     }
   }
 
@@ -246,7 +277,9 @@
     if (!ticket) return;
     const content = commentDraft.trim();
     if (!content) return;
-    const author = users[0]?.id || 'anon';
+    // Prefer the operator's chosen identity; fall back to first known user so
+    // comments don't silently get attributed to 'anon' in single-user setups.
+    const author = $currentUserId || users[0]?.id || 'anon';
     try {
       const res = await fetch(`/api/tickets/${ticket.id}/comments`, {
         method: 'POST',
@@ -271,6 +304,34 @@
   }
 
   $: prio = draft.priority ? PRIORITY_META[draft.priority as any] : null;
+
+  // Auto-grow textarea up to a cap (defaults to 60vh). Runs on mount and every input.
+  // Once the content exceeds the cap, native scrolling kicks in via overflow-y: auto in CSS.
+  function autoGrow(node: HTMLTextAreaElement, opts: { maxVh?: number } = {}) {
+    const maxVh = opts.maxVh ?? 60;
+    const resize = () => {
+      const cap = Math.round((window.innerHeight * maxVh) / 100);
+      // Reset so scrollHeight reflects only the content, not the previously-set height.
+      node.style.height = 'auto';
+      const next = Math.min(node.scrollHeight, cap);
+      node.style.height = next + 'px';
+      node.style.overflowY = node.scrollHeight > cap ? 'auto' : 'hidden';
+    };
+    node.addEventListener('input', resize);
+    window.addEventListener('resize', resize);
+    // Defer once so the element has its final width (post-layout) before measuring.
+    requestAnimationFrame(resize);
+    return {
+      update(next: { maxVh?: number } = {}) {
+        opts = next;
+        resize();
+      },
+      destroy() {
+        node.removeEventListener('input', resize);
+        window.removeEventListener('resize', resize);
+      },
+    };
+  }
 </script>
 
 <header class="head">
@@ -375,6 +436,28 @@
         if (!isCreate) schedulePatch({ estimate: v });
       }}
     />
+
+    <span class="label">Labels</span>
+    <div class="labels-cell">
+      {#each labelList as l}
+        <span class="label-chip">
+          <span class="label-chip-text">{l}</span>
+          <button
+            class="label-chip-x"
+            type="button"
+            on:click={() => removeLabel(l)}
+            title="Remove label"
+          >×</button>
+        </span>
+      {/each}
+      <input
+        class="input label-input"
+        placeholder={labelList.length === 0 ? 'Add label…' : 'Add…'}
+        bind:value={labelInput}
+        on:keydown={onLabelKey}
+        on:blur={() => labelInput.trim() && addLabel(labelInput)}
+      />
+    </div>
   </div>
 
   <div class="deps-block">
@@ -435,6 +518,7 @@
       class="desc"
       placeholder="Describe the ticket…"
       bind:value={draft.description}
+      use:autoGrow
       on:input={() => !isCreate && schedulePatch({ description: draft.description })}
     ></textarea>
   </div>
@@ -612,6 +696,43 @@
     font-weight: 600;
   }
   .est { width: 88px; }
+  .labels-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .label-chip {
+    display: inline-flex;
+    align-items: center;
+    background: var(--chip);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 11px;
+    line-height: 1;
+  }
+  .label-chip-text {
+    padding: 4px 4px 4px 8px;
+    color: var(--text2);
+    font-weight: 500;
+  }
+  .label-chip-x {
+    background: transparent;
+    border: none;
+    color: var(--faint);
+    padding: 4px 8px 4px 4px;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .label-chip-x:hover { color: var(--text); }
+  .label-input {
+    flex: 1 1 120px;
+    min-width: 120px;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
   .deps-block { display: flex; flex-direction: column; gap: 8px; }
   .deps-head { display: flex; align-items: center; gap: 8px; }
   .deps-count {
@@ -702,8 +823,10 @@
     font-size: 12.5px;
     color: var(--text);
     outline: none;
-    resize: vertical;
+    resize: none;
     min-height: 80px;
+    max-height: 60vh;
+    overflow-y: hidden;
     width: 100%;
     font-family: inherit;
   }

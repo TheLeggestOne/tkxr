@@ -98,14 +98,15 @@ export async function startServer(args: ServeArgs): Promise<void> {
   const serverUrl = `http://${host}:${port}`;
   notifier.setServerUrl(serverUrl);
   
-  // Save server config for other CLI commands to use
+  // Save server config for other CLI commands (notifier) and the Vite dev server to use.
+  // We standardize on `.tkxr-server` (JSON) so notifier + vite + serve all agree on one file.
   try {
-    const configPath = path.join(process.cwd(), '.env.tkxr');
-    const envContent = `TKXR_HOST=${host}\nTKXR_PORT=${port}\n`;
-    await fs.writeFile(configPath, envContent, 'utf8');
+    const configPath = path.join(process.cwd(), '.tkxr-server');
+    const config = { host, port, url: serverUrl };
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2) + '\n', 'utf8');
   } catch (error) {
     // Don't fail if we can't write config
-    console.debug('Could not save .env.tkxr config:', error);
+    console.debug('Could not save .tkxr-server config:', error);
   }
 
   // Middleware
@@ -273,19 +274,36 @@ export async function startServer(args: ServeArgs): Promise<void> {
   app.delete('/api/users/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const deleted = await storage.deleteEntity('users', id);
+      const { deleted, unassignedTickets } = await storage.deleteUser(id);
 
       if (!deleted) {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      res.json({ success: true });
+      broadcast(wss, { type: 'user_deleted', data: { id } });
+      for (const t of unassignedTickets) {
+        broadcast(wss, { type: 'ticket_updated', data: t });
+      }
+
+      res.json({ success: true, unassignedTicketIds: unassignedTickets.map(t => t.id) });
     } catch (error) {
       res.status(500).json({ error: 'Failed to delete user' });
     }
   });
 
   // Comments API
+  // Aggregate comment counts for every ticket. Used by the board so
+  // BoardCard's comment badge lights up without one fetch per ticket.
+  app.get('/api/comments/counts', async (req, res) => {
+    try {
+      await storage.loadProject();
+      const counts = await storage.getCommentCounts();
+      res.json(counts);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to load comment counts' });
+    }
+  });
+
   app.get('/api/tickets/:ticketId/comments', async (req, res) => {
     try {
       // Reload data from disk to ensure we have the latest changes
@@ -372,13 +390,18 @@ export async function startServer(args: ServeArgs): Promise<void> {
   app.delete('/api/sprints/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const deleted = await storage.deleteEntity('sprints', id);
+      const { ok, sweptTickets } = await storage.deleteSprint(id);
 
-      if (!deleted) {
+      if (!ok) {
         return res.status(404).json({ error: 'Sprint not found' });
       }
 
-      res.json({ success: true });
+      broadcast(wss, { type: 'sprint_deleted', data: { id } });
+      for (const t of sweptTickets) {
+        broadcast(wss, { type: 'ticket_updated', data: t });
+      }
+
+      res.json({ success: true, sweptTicketIds: sweptTickets.map(t => t.id) });
     } catch (error) {
       res.status(500).json({ error: 'Failed to delete sprint' });
     }
@@ -997,7 +1020,7 @@ export async function startServer(args: ServeArgs): Promise<void> {
     
     // Clean up server config file
     try {
-      const configPath = path.join(process.cwd(), '.env.tkxr');
+      const configPath = path.join(process.cwd(), '.tkxr-server');
       unlinkSync(configPath);
     } catch (error) {
       // Ignore cleanup errors

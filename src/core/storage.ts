@@ -62,13 +62,43 @@ export class ProjectStorage {
     }
   }
 
-  async deleteUser(userId: string): Promise<boolean> {
+  async deleteUser(userId: string): Promise<{ deleted: boolean; unassignedTickets: Ticket[] }> {
     const users = await this.getUsers();
     const index = users.findIndex(u => u.id === userId);
-    if (index === -1) return false;
+    if (index === -1) return { deleted: false, unassignedTickets: [] };
     users.splice(index, 1);
     await fs.writeFile(this.usersPath, JSON.stringify(users, null, 2), 'utf8');
-    return true;
+
+    // Null out ticket.assignee for every ticket that pointed at the deleted user.
+    // Otherwise the board keeps rendering '?' avatars and the filter-by-user UI
+    // still lists a dead id.
+    const unassignedTickets: Ticket[] = [];
+    const chunkFiles = await this.getTicketChunkFiles();
+    for (const file of chunkFiles) {
+      const filePath = path.join(this.ticketsDir, file);
+      const content = await fs.readFile(filePath, 'utf8');
+      const lines = content.split('\n').filter(line => line.trim());
+      let touched = false;
+      const newLines = lines.map(line => {
+        const t = JSON.parse(line);
+        if (t.assignee === userId) {
+          touched = true;
+          const next = { ...t, assignee: undefined, updatedAt: new Date() };
+          unassignedTickets.push({
+            ...next,
+            createdAt: new Date(next.createdAt),
+            updatedAt: new Date(next.updatedAt),
+          });
+          return JSON.stringify(next);
+        }
+        return line;
+      });
+      if (touched) {
+        await fs.writeFile(filePath, newLines.map(l => l + '\n').join(''), 'utf8');
+      }
+    }
+
+    return { deleted: true, unassignedTickets };
   }
 
   async updateUser(id: string, updates: Partial<Pick<User, 'username' | 'displayName' | 'email' | 'color'>>): Promise<User | null> {
@@ -151,13 +181,45 @@ export class ProjectStorage {
     return sprint;
   }
 
-  async deleteSprint(sprintId: string): Promise<boolean> {
+  async deleteSprint(sprintId: string): Promise<{ ok: boolean; sweptTickets: Ticket[] }> {
     const sprints = await this.getSprints();
     const index = sprints.findIndex(s => s.id === sprintId);
-    if (index === -1) return false;
+    if (index === -1) return { ok: false, sweptTickets: [] };
     sprints.splice(index, 1);
     await fs.writeFile(this.sprintsPath, JSON.stringify(sprints, null, 2), 'utf8');
-    return true;
+
+    // Sweep tickets that were attached to this sprint — leaving stale sprint refs
+    // makes them disappear from any sprint view but linger under "All tickets" with
+    // a broken chip. Clear the field in-place across the NDJSON chunks and return
+    // the updated tickets so callers can broadcast ticket_updated for each.
+    const sweptTickets: Ticket[] = [];
+    const chunkFiles = await this.getTicketChunkFiles();
+    for (const file of chunkFiles) {
+      const filePath = path.join(this.ticketsDir, file);
+      const content = await fs.readFile(filePath, 'utf8');
+      const lines = content.split('\n').filter(line => line.trim());
+      let touched = false;
+      const newLines = lines.map(line => {
+        const t = JSON.parse(line);
+        if (t.sprint === sprintId) {
+          touched = true;
+          const next = { ...t, sprint: undefined, updatedAt: new Date() };
+          delete next.sprint;
+          sweptTickets.push({
+            ...next,
+            createdAt: new Date(t.createdAt),
+            updatedAt: next.updatedAt,
+          });
+          return JSON.stringify(next);
+        }
+        return line;
+      });
+      if (touched) {
+        await fs.writeFile(filePath, newLines.map(l => l + '\n').join(''), 'utf8');
+      }
+    }
+
+    return { ok: true, sweptTickets };
   }
 
   // Ticket CRUD (NDJSON)
@@ -275,6 +337,11 @@ export class ProjectStorage {
   }
 
   async getComments(ticketId: string): Promise<TicketComment[]> {
+    const all = await this.getAllComments();
+    return all.filter(c => c.ticketId === ticketId);
+  }
+
+  async getAllComments(): Promise<TicketComment[]> {
     const chunkFiles = await this.getCommentChunkFiles();
     let comments: TicketComment[] = [];
     for (const file of chunkFiles) {
@@ -289,7 +356,31 @@ export class ProjectStorage {
         };
       }));
     }
-    return comments.filter(c => c.ticketId === ticketId);
+    return comments;
+  }
+
+  // Aggregate comment counts across every ticket. Cheap enough for the current
+  // NDJSON layout (one pass over all chunk files, no JSON.parse per line beyond
+  // a tiny field extraction), and lets the board render badges without N fetches.
+  async getCommentCounts(): Promise<Record<string, number>> {
+    const chunkFiles = await this.getCommentChunkFiles();
+    const counts: Record<string, number> = {};
+    for (const file of chunkFiles) {
+      const content = await fs.readFile(path.join(this.commentsDir, file), 'utf8');
+      const lines = content.split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const c = JSON.parse(line);
+          if (c && typeof c.ticketId === 'string') {
+            counts[c.ticketId] = (counts[c.ticketId] || 0) + 1;
+          }
+        } catch {
+          // ignore malformed lines
+        }
+      }
+    }
+    return counts;
   }
 
   // Find ticket by ID
@@ -342,9 +433,9 @@ export class ProjectStorage {
       case 'bugs':
         return this.deleteTicket(id);
       case 'sprints':
-        return this.deleteSprint(id);
+        return (await this.deleteSprint(id)).ok;
       case 'users':
-        return this.deleteUser(id);
+        return (await this.deleteUser(id)).deleted;
       case 'comments':
         return this.deleteComment(id);
       default:

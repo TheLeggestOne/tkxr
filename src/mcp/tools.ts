@@ -272,12 +272,21 @@ export const TOOLS: ToolDef[] = [
       const q = String(query || '').toLowerCase().trim();
       if (!q) return errorResult('query is required');
       const tickets = await storage.getAllTickets();
+      // Read every comment once, then group by ticketId. Previously this loop
+      // called storage.getComments(t.id) per ticket — each call re-scanned every
+      // NDJSON chunk on disk (classic N+1). Grouping upfront collapses N disk
+      // scans into 1.
+      const allComments = await storage.getAllComments();
+      const commentsByTicket = new Map<string, string>();
+      for (const c of allComments) {
+        const prev = commentsByTicket.get(c.ticketId);
+        commentsByTicket.set(c.ticketId, prev ? `${prev} ${c.content}` : c.content);
+      }
       const results: { ticket: Ticket; score: number; snippet: string }[] = [];
       for (const t of tickets) {
         if (!includeDone && t.status === 'done') continue;
         const hay = `${t.title} ${t.description || ''}`.toLowerCase();
-        const comments = await storage.getComments(t.id);
-        const cText = comments.map(c => c.content).join(' ').toLowerCase();
+        const cText = (commentsByTicket.get(t.id) || '').toLowerCase();
         const inTitle = (t.title.toLowerCase().match(new RegExp(escapeRe(q), 'g')) || []).length;
         const inDesc = (t.description || '').toLowerCase().split(q).length - 1;
         const inComments = cText.split(q).length - 1;
@@ -671,17 +680,20 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'delete_sprint',
-    description: 'Delete a sprint by id. Tickets in the sprint keep their sprint field pointing to the deleted id — set them to another sprint first if needed.',
+    description: 'Delete a sprint by id. Any tickets attached to the sprint have their sprint field cleared and each is re-broadcast as ticket_updated so open web clients refresh.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
       required: ['id'],
     },
     handler: async ({ id }, { storage, broadcast }) => {
-      const ok = await storage.deleteSprint(id);
+      const { ok, sweptTickets } = await storage.deleteSprint(id);
       if (!ok) return errorResult(`Sprint "${id}" not found`);
       broadcast?.({ type: 'sprint_deleted', data: { id } });
-      return jsonResult({ id, deleted: true });
+      for (const t of sweptTickets) {
+        broadcast?.({ type: 'ticket_updated', data: t });
+      }
+      return jsonResult({ id, deleted: true, sweptTicketIds: sweptTickets.map(t => t.id) });
     },
   },
   {
@@ -738,7 +750,7 @@ export const TOOLS: ToolDef[] = [
   },
   {
     name: 'delete_user',
-    description: 'Delete a user. Tickets assigned to them keep the stale assignee field — reassign first if needed.',
+    description: 'Delete a user. Any tickets assigned to them are automatically unassigned (ticket.assignee cleared) and each unassigned ticket broadcasts a ticket_updated event.',
     inputSchema: {
       type: 'object',
       properties: { ref: { type: 'string' } },
@@ -747,10 +759,13 @@ export const TOOLS: ToolDef[] = [
     handler: async ({ ref }, { storage, broadcast }) => {
       const uid = await resolveUserId(storage, ref);
       if (!uid) return errorResult(`User "${ref}" not found`);
-      const ok = await storage.deleteUser(uid);
-      if (!ok) return errorResult(`Failed to delete user "${uid}"`);
+      const { deleted, unassignedTickets } = await storage.deleteUser(uid);
+      if (!deleted) return errorResult(`Failed to delete user "${uid}"`);
       broadcast?.({ type: 'user_deleted', data: { id: uid } });
-      return jsonResult({ id: uid, deleted: true });
+      for (const t of unassignedTickets) {
+        broadcast?.({ type: 'ticket_updated', data: t });
+      }
+      return jsonResult({ id: uid, deleted: true, unassignedTicketIds: unassignedTickets.map(t => t.id) });
     },
   },
 

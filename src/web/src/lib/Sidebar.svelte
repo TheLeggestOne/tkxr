@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import type { Sprint, User, Ticket } from './stores';
   import { avatarColorFor, initials, sprintDotColor } from './util';
   import { theme } from './theme';
+  import { currentUserId, resolveCurrentUser } from './currentUser';
   import { draggingTicketId } from './drag';
   import Search from './icons/Search.svelte';
   import Sparkles from './icons/Sparkles.svelte';
@@ -26,10 +27,41 @@
   const dispatch = createEventDispatcher();
 
   let dragOverKey: string | null = null;
+  let showCompleted = false;
+  let pickerOpen = false;
+  let footerEl: HTMLDivElement | null = null;
+
+  $: me = resolveCurrentUser(users, $currentUserId);
+  $: meIndex = me ? users.findIndex(u => u.id === me!.id) : -1;
+
+  function togglePicker() { pickerOpen = !pickerOpen; }
+  function selectMe(id: string | null) {
+    currentUserId.set(id);
+    pickerOpen = false;
+  }
+
+  function onWindowClick(e: MouseEvent) {
+    if (!pickerOpen) return;
+    if (footerEl && !footerEl.contains(e.target as Node)) pickerOpen = false;
+  }
+  function onKey(e: KeyboardEvent) {
+    if (e.key === 'Escape' && pickerOpen) pickerOpen = false;
+  }
+  onMount(() => {
+    window.addEventListener('mousedown', onWindowClick);
+    window.addEventListener('keydown', onKey);
+  });
+  onDestroy(() => {
+    window.removeEventListener('mousedown', onWindowClick);
+    window.removeEventListener('keydown', onKey);
+  });
 
   $: totalCount = tickets.length;
   $: sprintCounts = new Map(sprints.map(s => [s.id, tickets.filter(t => t.sprint === s.id).length]));
   $: userCounts = new Map(users.map(u => [u.id, tickets.filter(t => t.assignee === u.id).length]));
+  $: activeSprints = sprints.filter(s => s.status !== 'completed');
+  $: completedSprints = sprints.filter(s => s.status === 'completed');
+  $: visibleSprints = showCompleted ? [...activeSprints, ...completedSprints] : activeSprints;
 
   function selectView(v: 'board' | 'list') { dispatch('view', v); }
   function selectAllSprints() { dispatch('sprint', 'all'); }
@@ -138,7 +170,7 @@
       <span class="row-label">All tickets</span>
       <span class="mono count">{totalCount}</span>
     </button>
-    {#each sprints as sp (sp.id)}
+    {#each visibleSprints as sp (sp.id)}
       <div
         class="row"
         role="button"
@@ -168,6 +200,15 @@
         </button>
       </div>
     {/each}
+    {#if completedSprints.length > 0}
+      <button
+        class="show-completed"
+        title={showCompleted ? 'Hide completed sprints' : 'Show completed sprints'}
+        on:click={() => (showCompleted = !showCompleted)}
+      >
+        {showCompleted ? 'Hide completed' : `Show completed (${completedSprints.length})`}
+      </button>
+    {/if}
   </div>
 
   <div class="section-label">
@@ -217,16 +258,57 @@
     {/each}
   </div>
 
-  <div class="footer">
-    <span class="avatar footer-avatar" style="background:{avatarColorFor({ id: 'self', color: '#4c8dff' })};color:#0b0e12">t</span>
-    <div class="footer-meta">
-      <div class="footer-name">You</div>
-      <div class="footer-handle">@you</div>
-    </div>
+  <div class="footer" bind:this={footerEl}>
+    <button class="me-btn" on:click={togglePicker} title="Change current user" aria-haspopup="listbox" aria-expanded={pickerOpen}>
+      {#if me}
+        <span class="avatar footer-avatar" style="background:{avatarColorFor(me, meIndex)};color:#0b0e12">{initials(me.displayName)}</span>
+        <div class="footer-meta">
+          <div class="footer-name">{me.displayName}</div>
+          <div class="footer-handle">@{me.username}</div>
+        </div>
+      {:else}
+        <span class="avatar footer-avatar" style="background:var(--chip);color:var(--muted)">?</span>
+        <div class="footer-meta">
+          <div class="footer-name">Pick user</div>
+          <div class="footer-handle">not set</div>
+        </div>
+      {/if}
+      <span class="chevron" aria-hidden="true">▾</span>
+    </button>
     <span class="live-dot" title="Live"></span>
     <button class="theme-btn" title="Toggle theme" on:click={() => theme.toggle()}>
       {#if $theme === 'dark'}<Sun size={14} />{:else}<Moon size={14} />{/if}
     </button>
+
+    {#if pickerOpen}
+      <div class="picker" role="listbox">
+        <div class="picker-head">Current user</div>
+        {#each users as u, i (u.id)}
+          <button
+            class="picker-row"
+            class:selected={me?.id === u.id}
+            role="option"
+            aria-selected={me?.id === u.id}
+            on:click={() => selectMe(u.id)}
+          >
+            <span class="avatar picker-avatar" style="background:{avatarColorFor(u, i)};color:#0b0e12">{initials(u.displayName)}</span>
+            <span class="picker-meta">
+              <span class="picker-name">{u.displayName}</span>
+              <span class="picker-handle">@{u.username}</span>
+            </span>
+            {#if me?.id === u.id}
+              <span class="picker-check" aria-hidden="true">✓</span>
+            {/if}
+          </button>
+        {/each}
+        {#if users.length === 0}
+          <div class="picker-empty">No users yet. Add one from the People section.</div>
+        {/if}
+        {#if me}
+          <button class="picker-clear" on:click={() => selectMe(null)}>Clear current user</button>
+        {/if}
+      </div>
+    {/if}
   </div>
 </aside>
 
@@ -401,17 +483,149 @@
     color: var(--accent);
     background: rgba(76,141,255,.12);
   }
+  .show-completed {
+    margin: 4px 4px 2px;
+    padding: 5px 8px;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    color: var(--faint);
+    font-size: 11px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    transition: background .12s, color .12s;
+  }
+  .show-completed:hover { background: var(--surface); color: var(--text2); }
   .footer {
     border-top: 1px solid var(--border-subtle);
     padding: 10px 14px;
     display: flex;
     align-items: center;
     gap: 8px;
+    position: relative;
   }
+  .me-btn {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    margin: -4px -6px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+  }
+  .me-btn:hover { background: var(--surface); }
   .footer-avatar { width: 22px; height: 22px; }
   .footer-meta { flex: 1; min-width: 0; }
-  .footer-name { font-size: 11.5px; font-weight: 600; color: var(--text); }
-  .footer-handle { font-size: 10px; color: var(--faint); font-family: 'IBM Plex Mono'; }
+  .footer-name {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .footer-handle {
+    font-size: 10px;
+    color: var(--faint);
+    font-family: 'IBM Plex Mono';
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .chevron {
+    font-size: 9px;
+    color: var(--faint);
+    margin-left: 2px;
+  }
+  .picker {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 8px;
+    right: 8px;
+    background: var(--elevated, var(--surface));
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    padding: 4px;
+    z-index: 20;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+  .picker-head {
+    padding: 6px 10px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .picker-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text2);
+    cursor: pointer;
+    text-align: left;
+    font-size: 12.5px;
+  }
+  .picker-row:hover { background: var(--surface-hover); color: var(--text); }
+  .picker-row.selected { background: var(--nav-active); color: var(--text); }
+  .picker-avatar { width: 22px; height: 22px; }
+  .picker-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .picker-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .picker-handle {
+    font-size: 10px;
+    color: var(--faint);
+    font-family: 'IBM Plex Mono';
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .picker-check { color: var(--accent, #4c8dff); font-size: 12px; }
+  .picker-empty {
+    padding: 8px 10px;
+    font-size: 11.5px;
+    color: var(--faint);
+  }
+  .picker-clear {
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+    padding: 6px 10px;
+    background: transparent;
+    border: none;
+    border-top: 1px solid var(--border-subtle);
+    color: var(--muted);
+    font-size: 11.5px;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 0 0 6px 6px;
+  }
+  .picker-clear:hover { background: var(--surface-hover); color: var(--text); }
   .live-dot {
     width: 7px; height: 7px;
     border-radius: 50%;
