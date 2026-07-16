@@ -2,7 +2,7 @@ import type { Ticket, User, Sprint } from './stores';
 
 const MCP_REMINDER = `Use the tkxr MCP tools if attached (agent_guide, get_ticket, list_tickets, search_tickets, edit_ticket, update_ticket_status, assign_ticket, add_comment, set_ticket_sprint). If a change is warranted, apply it via the MCP tools so the web UI live-refreshes.`;
 
-function compactTicket(t: Ticket, users: User[], sprints: Sprint[]): any {
+function compactTicket(t: Ticket, users: User[], sprints: Sprint[], allTickets?: Ticket[]): any {
   const assignee = t.assignee ? users.find(u => u.id === t.assignee) : null;
   const sprint = t.sprint ? sprints.find(s => s.id === t.sprint) : null;
   const out: any = { id: t.id, type: t.type, title: t.title, status: t.status };
@@ -13,18 +13,41 @@ function compactTicket(t: Ticket, users: User[], sprints: Sprint[]): any {
   if (t.labels && t.labels.length > 0) out.labels = t.labels;
   if (t.description && t.description.trim()) out.description = t.description;
   if (t.worktree) out.worktree = { path: t.worktree.path, branch: t.worktree.branch };
+  if (t.dependsOn && t.dependsOn.length > 0) {
+    out.dependsOn = allTickets
+      ? t.dependsOn.map(d => {
+          const dt = allTickets.find(x => x.id === d);
+          return dt ? { id: d, title: dt.title, status: dt.status } : { id: d, missing: true };
+        })
+      : t.dependsOn;
+  }
   return out;
 }
 
-export function workOnTicketPrompt(ticket: Ticket, users: User[], sprints: Sprint[]): string {
-  const ctx = compactTicket(ticket, users, sprints);
+export function workOnTicketPrompt(ticket: Ticket, users: User[], sprints: Sprint[], allTickets: Ticket[] = []): string {
+  const ctx = compactTicket(ticket, users, sprints, allTickets);
   const noDescription = !ticket.description || !ticket.description.trim();
   const id = ticket.id;
+
+  // Unmet deps = non-done referenced tickets. Missing ids treated as done (nothing to wait on).
+  const unmetDeps = (ticket.dependsOn || [])
+    .map(d => allTickets.find(t => t.id === d))
+    .filter((t): t is Ticket => !!t && t.status !== 'done');
 
   const lines: string[] = [
     `# tkxr — Work on ticket ${id}`,
     ``,
   ];
+
+  if (unmetDeps.length > 0) {
+    lines.push(
+      `**Blocked:** this ticket declares \`dependsOn\` and ${unmetDeps.length} of them ${unmetDeps.length === 1 ? 'is' : 'are'} not \`done\` yet:`,
+      ...unmetDeps.map(d => `- \`${d.id}\` (${d.status}) — ${d.title}`),
+      ``,
+      `Do NOT start the work. Instead: call \`update_ticket_status\` with \`{ id: "${id}", status: "blocked" }\`, add a comment naming the deps you're waiting on, and return control. When the deps finish (\`done\`), re-run this prompt.`,
+      ``,
+    );
+  }
 
   if (ticket.status === 'done') {
     lines.push(
@@ -112,8 +135,8 @@ export function workOnTicketPrompt(ticket: Ticket, users: User[], sprints: Sprin
   return lines.join('\n');
 }
 
-export function ticketAskPrompt(question: string, ticket: Ticket, users: User[], sprints: Sprint[]): string {
-  const ctx = compactTicket(ticket, users, sprints);
+export function ticketAskPrompt(question: string, ticket: Ticket, users: User[], sprints: Sprint[], allTickets: Ticket[] = []): string {
+  const ctx = compactTicket(ticket, users, sprints, allTickets);
   return [
     `# tkxr — Ticket question`,
     ``,
@@ -187,6 +210,7 @@ export function triagePrompt(tickets: Ticket[], users: User[], sprints: Sprint[]
 
 export function orchestrateSprintPrompt(sprint: Sprint, tickets: Ticket[], users: User[]): string {
   const scoped = tickets.filter(t => t.sprint === sprint.id && t.status !== 'done');
+  const scopedIds = new Set(scoped.map(t => t.id));
   const projection = scoped.map(t => {
     const a = t.assignee ? users.find(u => u.id === t.assignee) : null;
     const compact: any = {
@@ -199,6 +223,17 @@ export function orchestrateSprintPrompt(sprint: Sprint, tickets: Ticket[], users
       assignee: a ? `@${a.username}` : null,
     };
     if (t.worktree) compact.worktree = { path: t.worktree.path, branch: t.worktree.branch };
+    if (t.dependsOn && t.dependsOn.length > 0) {
+      compact.dependsOn = t.dependsOn.map(d => {
+        const dt = tickets.find(x => x.id === d);
+        if (!dt) return { id: d, missing: true };
+        return {
+          id: d,
+          status: dt.status,
+          inThisSprint: scopedIds.has(d) || dt.sprint === sprint.id,
+        };
+      });
+    }
     return compact;
   });
 
@@ -219,19 +254,28 @@ export function orchestrateSprintPrompt(sprint: Sprint, tickets: Ticket[], users
       ? `The sprint already has a worktree: \`${wtPath}\` on branch \`${wtBranch}\`. \`cd\` there — that's your workspace for the entire orchestration.`
       : `1. Create the sprint worktree — call \`create_sprint_worktree\` with \`{ sprintId: "${sprint.id}" }\`. Default: branch \`tkxr/sprint/${sprint.id}\` at \`<repo-parent>/<repo>-worktrees/sprints/${sprint.id}\`.\n2. \`cd\` into the returned path.`,
     ``,
-    `## Fan out`,
-    `For each open ticket in this sprint, spawn a sub-agent via the **Task tool**. Send each sub-agent the prompt below (substitute the ticket id + sprint branch):`,
+`## Plan the fan-out (dependency-aware)`,
+    `Before spawning anything, build a plan:`,
+    ``,
+    `1. Build a dep graph from each ticket's \`dependsOn\` list PLUS a scan of ticket descriptions/comments for references to other ticket ids (\`tas-*\`, \`bug-*\`).`,
+    `2. Topologically sort. If you find a cycle, stop and escalate to the human — do not attempt to break it silently.`,
+    `3. Wave 1 = tickets whose deps are all \`done\` (or missing / outside this sprint and clearly resolved). Wave 2 = tickets that only depend on Wave 1. And so on.`,
+    `4. For any ticket in Wave 2+, immediately: \`update_ticket_status\` to \`blocked\` + \`add_comment\` listing the deps it waits on. Do not fan out yet.`,
+    ``,
+    `## Fan out — wave by wave`,
+    `For each ticket in the current wave, spawn a sub-agent via the **Task tool**. Send each sub-agent the prompt below (substitute the ticket id + sprint branch):`,
     ``,
     '```',
     `Work on tkxr ticket <TICKET_ID>.`,
     ``,
-    `1. Call \`create_worktree\` with \`{ ticketId: "<TICKET_ID>" }\` — the base will default to the sprint branch (\`${wtBranch}\`) automatically because this ticket is in a sprint that has a worktree.`,
-    `2. cd into the returned path. Do NOT touch any other directory.`,
-    `3. Read the ticket + its comments via \`get_ticket\`. Look at the actual repo.`,
-    `4. Call \`update_ticket_status\` with \`{ id: "<TICKET_ID>", status: "progress" }\`.`,
-    `5. Do the work. Commit on your ticket branch. Do NOT merge, rebase, or push.`,
-    `6. When done: call \`update_ticket_status\` with \`status: "review"\`, then \`add_comment\` summarising what changed and how to verify.`,
-    `7. Return control to the orchestrator with the ticket id + branch name.`,
+    `1. Call \`get_ticket\` first. If the response has a non-empty \`blockedBy\` list, STOP: call \`update_ticket_status\` with \`status: "blocked"\`, \`add_comment\` naming the deps, and return control. The orchestrator will re-fan you when unblocked.`,
+    `2. Otherwise: call \`create_worktree\` with \`{ ticketId: "<TICKET_ID>" }\` — base defaults to the sprint branch (\`${wtBranch}\`) automatically.`,
+    `3. cd into the returned path. Do NOT touch any other directory.`,
+    `4. Re-read the ticket + comments if needed. Look at the actual repo.`,
+    `5. Call \`update_ticket_status\` with \`{ id: "<TICKET_ID>", status: "progress" }\`.`,
+    `6. Do the work. Commit on your ticket branch. Do NOT merge, rebase against the sprint branch, or push.`,
+    `7. When done: call \`update_ticket_status\` with \`status: "review"\`, then \`add_comment\` summarising what changed and how to verify.`,
+    `8. Return control to the orchestrator with the ticket id + branch name.`,
     '```',
     ``,
     `Fan out as many sub-agents in parallel as you like. Each has its own worktree + branch, so they won't collide.`,
@@ -239,10 +283,11 @@ export function orchestrateSprintPrompt(sprint: Sprint, tickets: Ticket[], users
     `## Integrate (in the sprint worktree)`,
     `As each sub-agent reports back with a ticket in \`review\`:`,
     ``,
-    `1. Verify with \`get_ticket\` that status is \`review\` and the ticket branch is set.`,
+    `1. Verify with \`get_ticket\` that status is \`review\` and the ticket branch is set. Also check \`blockedBy\` in the response — sanity check that nothing regressed.`,
     `2. From the sprint worktree, run \`git merge --no-ff <ticket-branch> -m "Merge <ticket-id>: <ticket-title>"\`.`,
-    `3. **On merge conflict**: \`git merge --abort\`. Call \`add_comment\` on the ticket describing the conflicting paths + which other ticket(s) collided with it. Set status back to \`progress\` and re-fan a sub-agent to resolve, OR escalate to the human. Do not force anything.`,
-    `4. **On clean merge**: \`update_ticket_status\` to \`done\` (this will auto-remove the ticket worktree if clean). If you kept the ticket branch and want to prune it: \`git branch -d <ticket-branch>\`.`,
+    `3. **On merge conflict**: \`git merge --abort\`. Call \`add_comment\` on the ticket describing the conflicting paths + which other ticket(s) collided with it. Set status back to \`progress\` and re-fan a sub-agent to resolve — instruct the sub-agent to pull the latest sprint branch into its worktree first (\`git pull --rebase origin ${wtBranch}\` or \`git rebase ${wtBranch}\`), OR escalate to the human. Do not force anything.`,
+    `4. **On clean merge**: \`update_ticket_status\` to \`done\` (this auto-removes the ticket worktree if clean). If you kept the ticket branch and want to prune it: \`git branch -d <ticket-branch>\`.`,
+    `5. **After each done**: re-scan blocked tickets in this sprint. For any whose \`dependsOn\` are now all \`done\`, transition them back to \`backlog\` + \`add_comment\` noting the unblock, then fan out a sub-agent for it.`,
     ``,
     `## Finish`,
     `When every ticket is either \`done\` or explicitly deferred:`,

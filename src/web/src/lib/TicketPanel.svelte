@@ -11,6 +11,7 @@
   export let isCreate = false;
   export let sprints: Sprint[] = [];
   export let users: User[] = [];
+  export let allTickets: Ticket[] = [];
   export let defaultSprint: string | null = null;
   export let defaultAssignee: string | null = null;
 
@@ -36,6 +37,44 @@
   let commentDraft = '';
   let askInput = '';
   let saveTimer: number | null = null;
+  let depInput = '';
+  let depSuggestOpen = false;
+
+  $: depList = (draft.dependsOn || []) as string[];
+  $: depSuggestions = (() => {
+    const q = depInput.trim().toLowerCase();
+    if (!q || !allTickets.length) return [];
+    return allTickets
+      .filter(t => t.id !== ticket?.id && !depList.includes(t.id))
+      .filter(t => t.id.toLowerCase().includes(q) || t.title.toLowerCase().includes(q))
+      .slice(0, 6);
+  })();
+  $: depTicketMap = new Map(allTickets.map(t => [t.id, t]));
+
+  function addDep(id: string) {
+    const clean = id.trim();
+    if (!clean || clean === ticket?.id) return;
+    if (depList.includes(clean)) return;
+    const next = [...depList, clean];
+    draft.dependsOn = next;
+    depInput = '';
+    depSuggestOpen = false;
+    if (!isCreate) schedulePatch({ dependsOn: next });
+  }
+  function removeDep(id: string) {
+    const next = depList.filter(d => d !== id);
+    draft.dependsOn = next;
+    if (!isCreate) schedulePatch({ dependsOn: next });
+  }
+  function onDepKey(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (depSuggestions[0]) addDep(depSuggestions[0].id);
+      else if (depInput.trim()) addDep(depInput.trim());
+    } else if (e.key === 'Escape') {
+      depSuggestOpen = false;
+    }
+  }
 
   const ASK_PRESETS = [
     { label: 'Break into subtasks', text: 'Break this ticket into concrete subtasks. If it makes sense, create them as new tickets linked to this one via a "parent" label.' },
@@ -46,7 +85,7 @@
 
   function copyAsk(prompt: string) {
     if (!ticket) return;
-    const text = ticketAskPrompt(prompt, ticket, users, sprints);
+    const text = ticketAskPrompt(prompt, ticket, users, sprints, allTickets);
     copyPrompt(text);
   }
   function copyAskFromInput() {
@@ -57,7 +96,7 @@
   }
   function copyWorkOn() {
     if (!ticket) return;
-    copyPrompt(workOnTicketPrompt(ticket, users, sprints));
+    copyPrompt(workOnTicketPrompt(ticket, users, sprints, allTickets));
   }
 
   let worktreeBusy = false;
@@ -338,6 +377,58 @@
     />
   </div>
 
+  <div class="deps-block">
+    <div class="deps-head">
+      <span class="label">Depends on</span>
+      {#if depList.length > 0}
+        <span class="deps-count mono">{depList.length}</span>
+      {/if}
+    </div>
+    {#if depList.length > 0}
+      <div class="deps-chips">
+        {#each depList as depId}
+          {@const dep = depTicketMap.get(depId)}
+          <span class="dep-chip" class:done={dep?.status === 'done'} class:missing={!dep}>
+            <button
+              class="dep-open"
+              type="button"
+              on:click={() => dep && dispatch('openTicket', depId)}
+              title={dep ? `${dep.title} · ${dep.status}` : `Missing ticket ${depId}`}
+            >
+              <span class="mono">{depId}</span>
+              {#if dep}
+                <span class="dep-status">{dep.status}</span>
+              {:else}
+                <span class="dep-status">missing</span>
+              {/if}
+            </button>
+            <button class="dep-x" type="button" on:click={() => removeDep(depId)} title="Remove">×</button>
+          </span>
+        {/each}
+      </div>
+    {/if}
+    <div class="deps-input">
+      <input
+        class="input"
+        placeholder="Add dependency by id or title…"
+        bind:value={depInput}
+        on:focus={() => depSuggestOpen = true}
+        on:keydown={onDepKey}
+      />
+      {#if depSuggestOpen && depSuggestions.length > 0}
+        <div class="dep-suggest">
+          {#each depSuggestions as s}
+            <button class="dep-suggest-row" type="button" on:click={() => addDep(s.id)}>
+              <span class="mono">{s.id}</span>
+              <span class="dep-suggest-title">{s.title}</span>
+              <span class="dep-suggest-status">{s.status}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </div>
+
   <div>
     <div class="label" style="margin-bottom:6px">Description</div>
     <textarea
@@ -521,6 +612,88 @@
     font-weight: 600;
   }
   .est { width: 88px; }
+  .deps-block { display: flex; flex-direction: column; gap: 8px; }
+  .deps-head { display: flex; align-items: center; gap: 8px; }
+  .deps-count {
+    font-size: 10px;
+    color: var(--faint);
+    background: var(--surface);
+    padding: 1px 6px;
+    border-radius: 5px;
+  }
+  .deps-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .dep-chip {
+    display: inline-flex;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 11px;
+  }
+  .dep-chip.done { border-color: rgba(70,193,127,.35); }
+  .dep-chip.missing { border-color: rgba(255,107,107,.35); }
+  .dep-open {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: transparent;
+    border: none;
+    color: var(--text2);
+    cursor: pointer;
+  }
+  .dep-open:hover { background: var(--surface-hover); }
+  .dep-open .mono { font-size: 10.5px; color: var(--faint); }
+  .dep-status {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 600;
+  }
+  .dep-chip.done .dep-status { color: #46c17f; }
+  .dep-chip.missing .dep-status { color: #ff6b6b; }
+  .dep-x {
+    background: transparent;
+    border: none;
+    color: var(--faint);
+    padding: 4px 8px 4px 4px;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .dep-x:hover { color: var(--text); }
+  .deps-input { position: relative; }
+  .dep-suggest {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(0,0,0,.3);
+    z-index: 5;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  .dep-suggest-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    background: transparent;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .dep-suggest-row:hover { background: var(--surface-hover); }
+  .dep-suggest-row .mono { font-size: 10.5px; color: var(--faint); flex: 0 0 auto; }
+  .dep-suggest-title { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dep-suggest-status { font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
   .desc {
     background: var(--surface-hover);
     border: 1px solid var(--border);

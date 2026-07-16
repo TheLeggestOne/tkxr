@@ -327,10 +327,12 @@
         {isCreate}
         sprints={$sprintStore}
         users={$userStore}
+        allTickets={$ticketStore}
         defaultSprint={activeSprint !== 'all' && activeSprint !== 'none' ? activeSprint : null}
         defaultAssignee={activeUser !== 'all' && activeUser !== 'none' ? activeUser : null}
         on:reload={reload}
         on:close={closePanel}
+        on:openTicket={(e) => openTicket(e.detail)}
       />
     {/key}
   {:else if panel === 'sprint'}

@@ -42,6 +42,7 @@ export interface Ticket extends BaseEntity {
   labels?: string[];
   priority?: 'low' | 'medium' | 'high' | 'critical';
   worktree?: TicketWorktree | null;
+  dependsOn?: string[]; // Ticket IDs this ticket blocks on
 }
 
 export interface TicketComment extends BaseEntity {

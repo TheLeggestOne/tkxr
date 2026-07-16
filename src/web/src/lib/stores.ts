@@ -21,6 +21,7 @@ export interface Ticket {
   labels?: string[];
   priority?: TicketPriority;
   worktree?: TicketWorktree | null;
+  dependsOn?: string[];
   createdAt: string;
   updatedAt: string;
 }

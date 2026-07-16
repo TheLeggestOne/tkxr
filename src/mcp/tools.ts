@@ -105,6 +105,20 @@ changes live. You do not need to call anything to trigger this.
 - If a sprint doesn't exist yet, create one in \`planning\` status, then move to
   \`active\` when the team starts working.
 
+## Dependencies
+Tickets can declare inter-ticket blockers via \`dependsOn: string[]\`. When you
+call \`get_ticket\`, the response includes a resolved \`dependencies\` array +
+a \`blockedBy\` array (unmet, non-done deps). Rules of thumb:
+- Before starting work: if \`blockedBy\` is non-empty, do not proceed. Set the
+  ticket \`status: "blocked"\` + \`add_comment\` naming what it's waiting on.
+- Orchestrators must topological-sort children by \`dependsOn\` before fanning
+  out: only tickets whose deps are all \`done\` (or missing) are safe to
+  parallel-execute in the first wave.
+- Set/edit deps via \`edit_ticket\` (\`dependsOn\`, \`addDependencies\`,
+  \`removeDependencies\`, \`clearDependencies\`) or \`create_ticket\` (\`dependsOn\`).
+- The system does not enforce acyclicity — orchestrators should detect cycles
+  and escalate.
+
 ## Worktrees (concurrent work)
 Every ticket can be associated with a git worktree so multiple agents can work on
 different tickets simultaneously without stepping on each other's branch state.
@@ -213,9 +227,17 @@ export const TOOLS: ToolDef[] = [
       const comments = await storage.getComments(id);
       const users = await storage.getUsers();
       const sprints = await storage.getSprints();
+      const allTickets = await storage.getAllTickets();
       const assignee = ticket.assignee ? users.find(u => u.id === ticket.assignee) || null : null;
       const sprint = ticket.sprint ? sprints.find(s => s.id === ticket.sprint) || null : null;
-      return jsonResult({ ticket, comments, assignee, sprint });
+      const dependencies = (ticket.dependsOn || []).map(dep => {
+        const t = allTickets.find(x => x.id === dep);
+        return t
+          ? { id: t.id, title: t.title, status: t.status, done: t.status === 'done' }
+          : { id: dep, missing: true };
+      });
+      const blockedBy = dependencies.filter(d => !d.done && !('missing' in d && d.missing));
+      return jsonResult({ ticket, comments, assignee, sprint, dependencies, blockedBy });
     },
   },
   {
@@ -340,6 +362,7 @@ export const TOOLS: ToolDef[] = [
         estimate: { type: 'number' },
         status: { type: 'string', enum: [...STATUSES], description: 'Override initial status (defaults to backlog).' },
         labels: { type: 'array', items: { type: 'string' } },
+        dependsOn: { type: 'array', items: { type: 'string' }, description: 'Ticket ids this new ticket blocks on' },
       },
       required: ['type', 'title'],
     },
@@ -352,6 +375,7 @@ export const TOOLS: ToolDef[] = [
       if (args.priority) opts.priority = args.priority;
       if (args.estimate !== undefined) opts.estimate = args.estimate;
       if (args.labels) opts.labels = args.labels;
+      if (Array.isArray(args.dependsOn)) opts.dependsOn = args.dependsOn.filter((d: string) => !!d);
       const ticket = await storage.createTicket(args.type, args.title, opts);
       let final = ticket;
       if (args.status && args.status !== 'backlog') {
@@ -378,6 +402,10 @@ export const TOOLS: ToolDef[] = [
         addLabels: { type: 'array', items: { type: 'string' } },
         removeLabels: { type: 'array', items: { type: 'string' } },
         clearLabels: { type: 'boolean' },
+        dependsOn: { type: 'array', items: { type: 'string' }, description: 'Replace dependsOn with this list of ticket ids' },
+        addDependencies: { type: 'array', items: { type: 'string' }, description: 'Ticket ids to add to dependsOn' },
+        removeDependencies: { type: 'array', items: { type: 'string' }, description: 'Ticket ids to remove from dependsOn' },
+        clearDependencies: { type: 'boolean' },
         clearDescription: { type: 'boolean' },
         clearPriority: { type: 'boolean' },
         clearEstimate: { type: 'boolean' },
@@ -407,6 +435,15 @@ export const TOOLS: ToolDef[] = [
       if (Array.isArray(args.addLabels)) labels = [...new Set([...labels, ...args.addLabels])];
       if (Array.isArray(args.removeLabels)) labels = labels.filter(l => !args.removeLabels.includes(l));
       if (args.clearLabels || args.addLabels || args.removeLabels) patch.labels = labels;
+
+      let deps = found.ticket.dependsOn || [];
+      if (args.clearDependencies) deps = [];
+      if (Array.isArray(args.dependsOn)) deps = args.dependsOn.filter((d: string) => d && d !== args.id);
+      if (Array.isArray(args.addDependencies)) deps = [...new Set([...deps, ...args.addDependencies.filter((d: string) => d && d !== args.id)])];
+      if (Array.isArray(args.removeDependencies)) deps = deps.filter(d => !args.removeDependencies.includes(d));
+      if (args.clearDependencies || args.dependsOn !== undefined || args.addDependencies || args.removeDependencies) {
+        patch.dependsOn = deps;
+      }
 
       const updated = await storage.updateTicket(args.id, patch);
       if (!updated) return errorResult(`Failed to update ticket "${args.id}"`);
