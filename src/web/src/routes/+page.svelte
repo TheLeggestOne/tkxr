@@ -58,6 +58,19 @@
     } catch { /* noop */ }
   }
 
+  // If the selected sprint/user disappears (deleted from another client or CLI),
+  // fall back to 'all' so the board doesn't silently go empty.
+  $: if (activeSprint !== 'all' && activeSprint !== 'none'
+      && $sprintStore.length > 0
+      && !($sprintStore as Sprint[]).some(s => s.id === activeSprint)) {
+    activeSprint = 'all';
+  }
+  $: if (activeUser !== 'all' && activeUser !== 'none'
+      && $userStore.length > 0
+      && !($userStore as User[]).some(u => u.id === activeUser)) {
+    activeUser = 'all';
+  }
+
   onMount(() => {
     reload();
     setupWs();
