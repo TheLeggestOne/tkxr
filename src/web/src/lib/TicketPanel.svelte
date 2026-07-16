@@ -271,6 +271,34 @@
   }
 
   $: prio = draft.priority ? PRIORITY_META[draft.priority as any] : null;
+
+  // Auto-grow textarea up to a cap (defaults to 60vh). Runs on mount and every input.
+  // Once the content exceeds the cap, native scrolling kicks in via overflow-y: auto in CSS.
+  function autoGrow(node: HTMLTextAreaElement, opts: { maxVh?: number } = {}) {
+    const maxVh = opts.maxVh ?? 60;
+    const resize = () => {
+      const cap = Math.round((window.innerHeight * maxVh) / 100);
+      // Reset so scrollHeight reflects only the content, not the previously-set height.
+      node.style.height = 'auto';
+      const next = Math.min(node.scrollHeight, cap);
+      node.style.height = next + 'px';
+      node.style.overflowY = node.scrollHeight > cap ? 'auto' : 'hidden';
+    };
+    node.addEventListener('input', resize);
+    window.addEventListener('resize', resize);
+    // Defer once so the element has its final width (post-layout) before measuring.
+    requestAnimationFrame(resize);
+    return {
+      update(next: { maxVh?: number } = {}) {
+        opts = next;
+        resize();
+      },
+      destroy() {
+        node.removeEventListener('input', resize);
+        window.removeEventListener('resize', resize);
+      },
+    };
+  }
 </script>
 
 <header class="head">
@@ -435,6 +463,7 @@
       class="desc"
       placeholder="Describe the ticket…"
       bind:value={draft.description}
+      use:autoGrow
       on:input={() => !isCreate && schedulePatch({ description: draft.description })}
     ></textarea>
   </div>
@@ -702,8 +731,10 @@
     font-size: 12.5px;
     color: var(--text);
     outline: none;
-    resize: vertical;
+    resize: none;
     min-height: 80px;
+    max-height: 60vh;
+    overflow-y: hidden;
     width: 100%;
     font-family: inherit;
   }
