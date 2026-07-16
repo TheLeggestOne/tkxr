@@ -16,6 +16,28 @@ function bumpPatch(version) {
   return `${major}.${minor}.${patch + 1}`;
 }
 
+function bumpMinor(version) {
+  const [major, minor] = parseVersion(version);
+  return `${major}.${minor + 1}.0`;
+}
+
+function bumpMajor(version) {
+  const [major] = parseVersion(version);
+  return `${major + 1}.0.0`;
+}
+
+function bumpVersion(version, level) {
+  switch (level) {
+    case 'major':
+      return bumpMajor(version);
+    case 'minor':
+      return bumpMinor(version);
+    case 'patch':
+    default:
+      return bumpPatch(version);
+  }
+}
+
 function updatePackageVersion(filePath, newVersion) {
   const content = readFileSync(filePath, 'utf8');
   const pkg = JSON.parse(content);
@@ -25,10 +47,15 @@ function updatePackageVersion(filePath, newVersion) {
   return oldVersion;
 }
 
-function updateChangelog(newVersion) {
+function updateChangelog(newVersion, level = 'patch') {
   const changelogPath = join(__dirname, '..', 'CHANGELOG.md');
   const date = new Date().toISOString().split('T')[0];
-  const entry = `\n## [${newVersion}] - ${date}\n### Changed\n- Patch version bumped automatically during build.\n`;
+  const noteByLevel = {
+    major: 'Major version bumped — see notes above for breaking changes.',
+    minor: 'Minor version bumped.',
+    patch: 'Patch version bumped automatically during build.',
+  };
+  const entry = `\n## [${newVersion}] - ${date}\n### Changed\n- ${noteByLevel[level] || noteByLevel.patch}\n`;
   let changelog = '';
   if (existsSync(changelogPath)) {
     changelog = readFileSync(changelogPath, 'utf8');
@@ -46,15 +73,23 @@ function updateChangelog(newVersion) {
 }
 
 try {
+  // Parse bump level from CLI args: `node bump-version.js [major|minor|patch]`
+  const rawLevel = (process.argv[2] || 'patch').toLowerCase();
+  const validLevels = ['major', 'minor', 'patch'];
+  const level = validLevels.includes(rawLevel) ? rawLevel : 'patch';
+  if (!validLevels.includes(rawLevel)) {
+    console.log(`   ⚠️  Unknown bump level "${rawLevel}", defaulting to patch.`);
+  }
+
   // Read current version from root package.json
   const rootPkgPath = join(__dirname, '..', 'package.json');
   const rootPkg = JSON.parse(readFileSync(rootPkgPath, 'utf8'));
   const currentVersion = rootPkg.version || '0.0.0';
 
-  // Bump patch version
-  const newVersion = bumpPatch(currentVersion);
+  // Bump according to requested level
+  const newVersion = bumpVersion(currentVersion, level);
 
-  console.log(`🔢 Version bump: ${currentVersion} → ${newVersion}`);
+  console.log(`🔢 Version bump (${level}): ${currentVersion} → ${newVersion}`);
 
   // Update root package.json
   updatePackageVersion(rootPkgPath, newVersion);
@@ -71,7 +106,7 @@ try {
 
   // Append changelog entry for the new version
   try {
-    updateChangelog(newVersion);
+    updateChangelog(newVersion, level);
     console.log('   ✓ Updated CHANGELOG.md');
   } catch (error) {
     console.log('   ⚠️  Could not update CHANGELOG.md');
