@@ -297,6 +297,30 @@ export class ProjectStorage {
     return comments;
   }
 
+  // Aggregate comment counts across every ticket. Cheap enough for the current
+  // NDJSON layout (one pass over all chunk files, no JSON.parse per line beyond
+  // a tiny field extraction), and lets the board render badges without N fetches.
+  async getCommentCounts(): Promise<Record<string, number>> {
+    const chunkFiles = await this.getCommentChunkFiles();
+    const counts: Record<string, number> = {};
+    for (const file of chunkFiles) {
+      const content = await fs.readFile(path.join(this.commentsDir, file), 'utf8');
+      const lines = content.split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const c = JSON.parse(line);
+          if (c && typeof c.ticketId === 'string') {
+            counts[c.ticketId] = (counts[c.ticketId] || 0) + 1;
+          }
+        } catch {
+          // ignore malformed lines
+        }
+      }
+    }
+    return counts;
+  }
+
   // Find ticket by ID
   async findTicket(ticketId: string): Promise<{ ticket: Ticket } | null> {
     const tickets = await this.getAllTickets();
