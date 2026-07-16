@@ -3,7 +3,7 @@
   import type { Sprint, Ticket, User } from './stores';
   import { claudeConfig } from './stores';
   import { runPrompt } from './claudeRun';
-  import { sprintPlanPrompt, triagePrompt } from './prompts';
+  import { sprintBreakdownPrompt, sprintPlanPrompt, triagePrompt } from './prompts';
   import Sparkles from './icons/Sparkles.svelte';
   import X from './icons/X.svelte';
 
@@ -77,6 +77,13 @@
   function copyPlan() {
     runPrompt(sprintPlanPrompt(sprints, tickets, users), { label: 'Sprint plan' });
   }
+  function planSprint(sprint: Sprint) {
+    runPrompt(sprintBreakdownPrompt(sprint, tickets, users), {
+      cwd: sprint.worktree?.path,
+      label: 'Plan ' + sprint.name,
+    });
+  }
+  $: planningSprints = sprints.filter(s => s.status === 'planning' && !!s.goal && s.goal.trim().length > 0);
   function runItem(item: Item) {
     if (item.kind === 'draft_sprint') copyPlan();
     else dispatch('applyFilter', item.params || {});
@@ -107,6 +114,21 @@
     </button>
   </div>
 
+  {#each planningSprints as s (s.id)}
+    <div class="card">
+      <div class="row1">
+        <Sparkles size={14} color="var(--ai)" />
+        <span class="t">Plan sprint "{s.name}" with Claude</span>
+      </div>
+      <div class="detail">Break the goal into child tickets (waves via <code>dependsOn</code>). Guardrails: won't touch existing tickets, capped at ~12 new tickets.</div>
+      <div class="row-actions">
+        <button class="btn" on:click={() => planSprint(s)}>
+          {$claudeConfig?.available ? 'Plan with Claude' : 'Copy plan prompt'}
+        </button>
+      </div>
+    </div>
+  {/each}
+
   {#each findings.items as it}
     <div class="card">
       <div class="row1">
@@ -126,7 +148,7 @@
     </div>
   {/each}
 
-  {#if findings.items.length === 0}
+  {#if findings.items.length === 0 && planningSprints.length === 0}
     <div class="empty">Nothing needs attention. 🎉</div>
   {/if}
 </div>
@@ -180,6 +202,12 @@
   .dot { width: 8px; height: 8px; border-radius: 3px; flex: none; }
   .t { font-size: 12.5px; font-weight: 600; color: var(--text); }
   .detail { font-size: 12px; color: var(--muted); }
+  .detail code {
+    background: var(--surface);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 10.5px;
+  }
   .row-actions { display: flex; justify-content: flex-end; }
   .empty { color: var(--faint); font-size: 12.5px; padding: 20px; text-align: center; }
 </style>
