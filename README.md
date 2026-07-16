@@ -96,6 +96,44 @@ Layout:
 - **Toolbar** — context title, search box, type filter, sort selector, "New ticket" button.
 - **Main view** — either the 5-column **Board** or the **List** view. Board columns match the 5 statuses; drag between columns to move a ticket. Each column has an inline quick-add.
 - **Sprint strip** — appears above the view when a sprint is selected, showing `done / total` story points.
+
+### Search + infinite scroll
+
+The tickets view is server-paged so a large repo doesn't ship its entire
+ticket store to the browser on every load.
+
+- **List view** — fetches the first page (default 50 rows) on mount, then
+  an `IntersectionObserver` on a sentinel row inside `.list` triggers
+  `pagedTickets.fetchNextPage()` when it comes within one viewport
+  (`rootMargin: 400px`) of visibility. Fetching continues page-by-page
+  until the server returns `nextCursor: null`. In-flight page loads are
+  guarded so rapid scroll doesn't queue parallel requests, and the item
+  list de-dupes by id so a WS-created row that also appears in a later
+  page won't render twice.
+- **Board view** — each of the five status columns owns its own
+  `createPagedTicketStore()` with a fixed `limit: 25`. A **Load more**
+  button under each column extends only that column ("Load more (N left)"
+  uses `total - loaded`). The column badge shows the full server-side
+  total, so the count stays honest even when only a slice is loaded.
+- **Toolbar search** debounces at ~200ms and calls
+  `resetAndFetch({ q, ... })` on the active store(s). Every keystroke
+  aborts the previous fetch via `AbortController`, so a slow first page
+  can't overwrite the results of a newer query. Changing sprint,
+  assignee, type, status or sort chips also triggers `resetAndFetch` and
+  scrolls back to page 1.
+- **Live updates** — the shared `ticketEvents.ts` bus fans one WebSocket
+  connection out to every open panel. `ticket_created` / `ticket_updated`
+  / `ticket_deleted` events call `pagedTickets.applyEvent(...)` on the
+  active store — new rows are inserted in the correct sort position on
+  page 1 (or ignored past the cursor to avoid double-counting on the next
+  fetch); updates mutate in place; deletes drop the row from every loaded
+  page. The Sidebar's `/api/tickets/summary` fetch coalesces bursts of
+  events into a single request 500ms after the last one.
+
+The CLI reads storage directly, so `tkxr list` is untouched by the
+paging change. External HTTP consumers that hit `GET /api/tickets`
+without any paging query parameters continue to receive the full
+`Ticket[]` array (see the REST API section for the paged contract).
 - **Workspace panel** — a slide-in panel on the right for the currently selected ticket, sprint, user, or the AI Triage report. Never modal; you can keep the board visible behind it.
 - **Command palette** — Cmd/Ctrl-K, full-text ticket search, quick actions, natural-language ticket draft ("critical bug: login crash for @alice").
 
@@ -374,7 +412,8 @@ Example user:
 
 ```
 # Tickets
-GET    /api/tickets
+GET    /api/tickets                      (see "Paged tickets" below)
+GET    /api/tickets/summary              (aggregate counts for sidebar/board badges)
 GET    /api/tickets/:type                (task|bug)
 POST   /api/tickets
 PUT    /api/tickets/:id
@@ -426,6 +465,77 @@ POST   /api/claude/cancel                ({ runId })
 # Server metadata
 GET    /api/config                       ({ host, port, url, version, claude })
 ```
+
+### Paged tickets
+
+`GET /api/tickets` has two response shapes, selected by whether *any*
+paging query parameter is present:
+
+- **No paging params** — returns the legacy `Ticket[]` array (used by the
+  CLI's `list` command via `storage.getAllTickets()` and any external
+  script that hard-codes the pre-2.1 shape).
+- **Any of `limit | cursor | q | sprint | assignee | type | status | sortBy` present** —
+  returns `{ items: Ticket[], nextCursor: string | null, total: number }`.
+
+| Param      | Type                                                 | Notes                                                                 |
+|------------|------------------------------------------------------|-----------------------------------------------------------------------|
+| `limit`    | positive number (default `50`, hard cap `200`)       | Rejects `0` / negative / non-numeric with `400 bad_input`.            |
+| `cursor`   | opaque base64url string (from a previous `nextCursor`)| Passing an unknown/expired cursor is treated as "start from the top". |
+| `q`        | string                                               | Case-insensitive substring match over title + description.            |
+| `sprint`   | sprint id or the literal `none`                      | `none` matches tickets with no sprint.                                |
+| `assignee` | user id or the literal `none`                        | `none` matches unassigned tickets.                                    |
+| `type`     | `task` \| `bug`                                      | Anything else → `400 bad_input`.                                      |
+| `status`   | `backlog` \| `progress` \| `review` \| `blocked` \| `done` | Anything else → `400 bad_input`.                                |
+| `sortBy`   | `updated` (default) \| `created` \| `priority` \| `title` | Priority sort uses `critical > high > medium > low`; ties broken by id. |
+
+`nextCursor` is `null` on the last page. The cursor is fully opaque
+(base64url of `sortValue|id`) — do not parse it in a client. Bumping the
+sort field or the filter chips invalidates any held cursor; call
+`resetAndFetch(...)` on the store (or issue a fresh request without a
+cursor) whenever the query changes.
+
+```bash
+curl "http://localhost:8080/api/tickets?limit=25&status=backlog&sortBy=priority"
+# → { "items": [...25 tickets...], "nextCursor": "MjAyNi0wNy0xNlQwNTo1NjoxNS4wNzdafHRhcy1hYmMxMjM0NQ", "total": 137 }
+```
+
+### Ticket summary
+
+`GET /api/tickets/summary` returns a cheap single-pass aggregate over
+`getAllTickets()`. The sidebar polls it on mount and on every `ticket_*`
+WS event (coalesced 500ms), so badges + the triage pill stay honest
+even when the paged list only holds a slice of tickets.
+
+```json
+{
+  "counts": {
+    "backlog": 42,
+    "progress": 7,
+    "review": 3,
+    "blocked": 1,
+    "done": 89,
+    "total": 142
+  },
+  "triage": {
+    "unassignedOpen": 6,
+    "criticalOpen": 2,
+    "backlogCount": 42
+  },
+  "byStatus": {
+    "backlog": 42,
+    "progress": 7,
+    "review": 3,
+    "blocked": 1,
+    "done": 89
+  }
+}
+```
+
+The endpoint reloads from disk each call, so it always agrees with
+whatever `/api/tickets` last read. It broadcasts nothing on the WS bus —
+mutations that need summary refreshes are announced via their own
+`ticket_created` / `ticket_updated` / `ticket_deleted` events and the
+sidebar refetches from there.
 
 ### WebSocket
 
