@@ -1,4 +1,4 @@
-// Claude CLI discovery + config surface.
+// Claude CLI discovery + config surface + server-side runner primitives.
 //
 // This module owns the "does the user have a working `claude` CLI on their
 // machine" probe. It is called once at server boot from `src/cli/commands/serve.ts`
@@ -6,7 +6,8 @@
 // (tas-5j83ACCR — server spawn, tas-T8ZXseeD / G7GkoInt / 3Rto4I82 / 1xjZ4qLb —
 // panel wiring) consume that cached result rather than re-probing.
 //
-// Design reference: docs/claude-cli-integration.md §2 + §7.
+// Design reference: docs/claude-cli-integration.md §2 + §7 (discovery), §1 + §3
+// (spawn / stream-json shape).
 //
 // Env vars honored:
 //   TKXR_CLAUDE_BIN              — absolute path OR bare command name.
@@ -27,7 +28,7 @@
 //                                  `--max-budget-usd <value>` when set.
 
 import { promisify } from 'util';
-import { exec } from 'child_process';
+import { exec, spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { access } from 'fs/promises';
 import path from 'path';
 
@@ -54,8 +55,11 @@ export interface ClaudeConfig {
  * Parse TKXR_CLAUDE_ARGS. Simple whitespace split — the spawn call in
  * tas-5j83ACCR uses `shell: false` so no shell metacharacters can reach
  * the OS process boundary. Empty / undefined → [].
+ *
+ * Exported so `src/cli/commands/serve.ts` can also parse the env value at
+ * spawn time when `app.locals.claude.extraArgs` was not pre-populated.
  */
-function parseExtraArgs(raw: string | undefined): string[] {
+export function parseExtraArgs(raw: string | undefined): string[] {
   if (!raw) return [];
   const trimmed = raw.trim();
   if (!trimmed) return [];
@@ -162,4 +166,112 @@ export function toPublicConfig(c: ClaudeConfig): { available: boolean; bin: stri
   if (c.version) out.version = c.version;
   if (c.disabled) out.disabled = c.disabled;
   return out;
+}
+
+// -------------------- Server-side runner (tas-5j83ACCR) --------------------
+//
+// Spawn/cancel primitives consumed by `src/cli/commands/serve.ts`. Kept in this
+// module so all Claude-CLI knowledge lives in one place — argv shape, stdin
+// framing, cross-platform kill semantics.
+
+export interface SpawnClaudeOptions {
+  prompt: string;
+  cwd: string;
+  bin: string;
+  /** Extra flags appended after `-p --output-format stream-json --verbose`. Space-split. */
+  extraArgs?: string[];
+}
+
+/**
+ * In-memory record of a live `claude` run. Held in a `Map<runId, ClaudeRun>`
+ * inside the serve command so late-joining WebSocket subscribers can replay
+ * frames and cancel can look up the child by id.
+ */
+export interface ClaudeRun {
+  runId: string;
+  child: ChildProcessWithoutNullStreams;
+  /** Buffered stream-json frames (for late subscribers / transcript). */
+  frames: any[];
+  /** Buffered stderr chunks, emitted verbatim on exit for failure diagnostics. */
+  stderrBuf: string[];
+  startedAt: number;
+  cwd: string;
+  label?: string;
+  /** Partial-line carry for the JSONL parser (stdout may not deliver whole lines). */
+  stdoutBuf: string;
+}
+
+/**
+ * Spawn `claude` in one-shot mode with the prompt piped on stdin.
+ * Returns the child immediately. Caller wires stdout/stderr/exit listeners.
+ *
+ * Never sets `shell: true` (defense against prompt-injection via ticket fields).
+ * Exception: on Windows, `.cmd` / `.bat` binaries require `shell: true` — Node's
+ * `spawn` won't execute them directly with `shell: false`. We opt in only for that
+ * narrow case; `.exe` (the normal install shape) still uses `shell: false`.
+ */
+export function spawnClaude(opts: SpawnClaudeOptions): ChildProcessWithoutNullStreams {
+  const { prompt, cwd, bin, extraArgs = [] } = opts;
+
+  const baseArgs = ['-p', '--output-format', 'stream-json', '--verbose'];
+  // Default to no session persistence — see docs §1d.
+  if (!extraArgs.includes('--no-session-persistence')) {
+    baseArgs.push('--no-session-persistence');
+  }
+  const fallbackModel = process.env.TKXR_CLAUDE_FALLBACK_MODEL?.trim();
+  if (fallbackModel && !extraArgs.some(a => a === '--fallback-model')) {
+    baseArgs.push('--fallback-model', fallbackModel);
+  }
+  const maxBudget = process.env.TKXR_CLAUDE_MAX_BUDGET_USD?.trim();
+  if (maxBudget && !extraArgs.some(a => a === '--max-budget-usd')) {
+    baseArgs.push('--max-budget-usd', maxBudget);
+  }
+
+  const argv = [...baseArgs, ...extraArgs];
+
+  const lower = bin.toLowerCase();
+  const isWindowsScript =
+    process.platform === 'win32' && (lower.endsWith('.cmd') || lower.endsWith('.bat'));
+
+  const child = spawn(bin, argv, {
+    cwd,
+    env: process.env,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    windowsHide: true,
+    shell: isWindowsScript,
+  }) as ChildProcessWithoutNullStreams;
+
+  // Write the prompt to stdin. Close stdin so the CLI knows there's no more input.
+  child.stdin.write(prompt);
+  child.stdin.end();
+
+  return child;
+}
+
+/**
+ * Cross-platform "make sure this child is dead". SIGTERM first, then SIGKILL after
+ * a grace period. On Windows, Node's kill() forwards to TerminateProcess for SIGKILL.
+ */
+export function killWithGrace(
+  child: ChildProcessWithoutNullStreams,
+  graceMs = 2000,
+): void {
+  if (child.killed || child.exitCode !== null) return;
+  try {
+    child.kill('SIGTERM');
+  } catch {
+    // ignore
+  }
+  const timer = setTimeout(() => {
+    if (child.exitCode === null && !child.killed) {
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        // ignore
+      }
+    }
+  }, graceMs);
+  // Don't hold the event loop open on this timer.
+  timer.unref?.();
+  child.once('exit', () => clearTimeout(timer));
 }
