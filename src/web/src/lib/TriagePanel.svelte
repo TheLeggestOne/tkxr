@@ -1,7 +1,8 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import type { Sprint, Ticket, User } from './stores';
-  import { copyPrompt } from './clipboard';
+  import { claudeConfig } from './stores';
+  import { runPrompt } from './claudeRun';
   import { sprintPlanPrompt, triagePrompt } from './prompts';
   import Sparkles from './icons/Sparkles.svelte';
   import X from './icons/X.svelte';
@@ -71,10 +72,10 @@
   }
 
   function copyFullTriage() {
-    copyPrompt(triagePrompt(tickets, users, sprints));
+    runPrompt(triagePrompt(tickets, users, sprints), { label: 'Triage' });
   }
   function copyPlan() {
-    copyPrompt(sprintPlanPrompt(sprints, tickets, users));
+    runPrompt(sprintPlanPrompt(sprints, tickets, users), { label: 'Sprint plan' });
   }
   function runItem(item: Item) {
     if (item.kind === 'draft_sprint') copyPlan();
@@ -93,10 +94,17 @@
 
   <div class="hero">
     <div class="hero-txt">
-      <div class="hero-t">Hand triage to Claude Code</div>
-      <div class="hero-s">Copies a full triage prompt (open tickets + tkxr MCP reminder). Paste into Claude Code — it'll use the tkxr MCP tools to inspect + fix.</div>
+      {#if $claudeConfig?.available}
+        <div class="hero-t">Run triage in Claude</div>
+        <div class="hero-s">Sends a full triage prompt (open tickets + tkxr MCP reminder) straight to the claude CLI. Live output streams into the run panel.</div>
+      {:else}
+        <div class="hero-t">Hand triage to Claude Code</div>
+        <div class="hero-s">Copies a full triage prompt (open tickets + tkxr MCP reminder). Paste into Claude Code — it'll use the tkxr MCP tools to inspect + fix.</div>
+      {/if}
     </div>
-    <button class="btn btn-primary" on:click={copyFullTriage}>Copy triage prompt</button>
+    <button class="btn btn-primary" on:click={copyFullTriage}>
+      {$claudeConfig?.available ? 'Run in Claude' : 'Copy triage prompt'}
+    </button>
   </div>
 
   {#each findings.items as it}
@@ -110,7 +118,9 @@
       {/if}
       <div class="row-actions">
         <button class="btn" on:click={() => runItem(it)}>
-          {it.kind === 'draft_sprint' ? 'Copy plan prompt' : 'Show me'}
+          {it.kind === 'draft_sprint'
+            ? ($claudeConfig?.available ? 'Run in Claude' : 'Copy plan prompt')
+            : 'Show me'}
         </button>
       </div>
     </div>
