@@ -2,6 +2,44 @@ import type { Ticket, User, Sprint } from './stores';
 
 const MCP_REMINDER = `Use the tkxr MCP tools if attached (agent_guide, get_ticket, list_tickets, search_tickets, edit_ticket, update_ticket_status, assign_ticket, add_comment, set_ticket_sprint). If a change is warranted, apply it via the MCP tools so the web UI live-refreshes.`;
 
+// Repo-wide convention: every code commit (ticket work, sprint merges, orchestrated
+// integrations) uses Conventional Commits — https://www.conventionalcommits.org/.
+// Shared block so the ticket-work prompt, the "commit with claude" prompt, and the
+// orchestrator all speak the same language.
+export const CONVENTIONAL_COMMIT_GUIDE = [
+  `## Commit convention (Conventional Commits — mandatory)`,
+  ``,
+  `All commits produced from tkxr flows follow Conventional Commits. Subject:`,
+  ``,
+  `\`\`\``,
+  `<type>(<scope>): <imperative subject> (<ticket-id>)`,
+  `\`\`\``,
+  ``,
+  `- **type** — infer from the ticket + diff:`,
+  `  - \`feat\` — new user-facing behavior (default for tickets with \`type: task\` that add capability).`,
+  `  - \`fix\` — bug repair (default for tickets with \`type: bug\`).`,
+  `  - \`docs\` — docs-only.`,
+  `  - \`refactor\` — no behavior change.`,
+  `  - \`test\` — tests-only.`,
+  `  - \`chore\` — tooling / build / infra. Use for merge commits: \`chore(merge)\`.`,
+  `  - \`perf\`, \`style\`, \`build\`, \`ci\` — as applicable.`,
+  `- **scope** — the primary directory or subsystem touched (e.g. \`web\`, \`claude-cli\`, \`mcp\`, \`core\`, \`docs\`). One word. Omit only if the change is genuinely cross-cutting.`,
+  `- **subject** — imperative, lower-case, no trailing period, ≤72 chars incl. type/scope/ticket-id suffix.`,
+  `- **ticket-id suffix** — append \`(<ticket-id>)\` so the commit is greppable back to the ticket. Skip only if there is genuinely no ticket (rare).`,
+  ``,
+  `Body (optional, wrap at ~72 cols):`,
+  `- **Why** — the motivation from the ticket description, not "what changed" (the diff shows that).`,
+  `- **Notes** — any migration steps, follow-ups, or reviewer heads-ups.`,
+  `- Do NOT include marketing prose, emoji, or "Generated with…" trailers.`,
+  ``,
+  `Examples:`,
+  `- \`feat(web): add commit-with-claude action on in-review tickets (tas-ZGctzRaH)\``,
+  `- \`fix(claude-cli): force non-interactive execution (bug-I30c9l0_)\``,
+  `- \`chore(merge): tas-abc123 add sprint planner\` (for merge commits)`,
+  ``,
+  `Merges (orchestrator + sprint integration): use \`chore(merge): <ticket-id> <short title>\` as the merge subject. Keep \`--no-ff\`.`,
+].join('\n');
+
 // Prepended to every prompt this module emits. Keeps the CLI from stalling on
 // approval / plan-mode gates when the server-side runner is headless. Paired
 // with `--permission-mode bypassPermissions` on the spawn side (bug-I30c9l0_).
@@ -139,7 +177,63 @@ export function workOnTicketPrompt(ticket: Ticket, users: User[], sprints: Sprin
   };
 
   lines.push(...flowByStatus[ticket.status], ``);
+  if (ticket.status !== 'review') {
+    // Reviewers verify, they don't commit — the convention block is only relevant
+    // to the flows that will actually produce commits.
+    lines.push(CONVENTIONAL_COMMIT_GUIDE, ``);
+  }
   lines.push(
+    `## Ticket context`,
+    '```json',
+    JSON.stringify(ctx, null, 2),
+    '```',
+    ``,
+    MCP_REMINDER,
+  );
+
+  return withDirective(lines.join('\n'));
+}
+
+export function commitTicketPrompt(ticket: Ticket, users: User[], sprints: Sprint[], allTickets: Ticket[] = []): string {
+  const ctx = compactTicket(ticket, users, sprints, allTickets);
+  const id = ticket.id;
+  const wtPath = ticket.worktree?.path;
+  const wtBranch = ticket.worktree?.branch;
+
+  const lines: string[] = [
+    `# tkxr — Commit review work for ticket ${id}`,
+    ``,
+    `This ticket is in **review**. Your job: stage the correct changes on its worktree and land ONE Conventional Commit summarising the work. No new implementation, no refactors — just a commit.`,
+    ``,
+  ];
+
+  if (wtPath && wtBranch) {
+    lines.push(
+      `**Worktree:** \`${wtPath}\` on branch \`${wtBranch}\`. \`cd\` there before running any git command — commits MUST land on this branch, not the parent checkout.`,
+      ``,
+    );
+  } else {
+    lines.push(
+      `**No worktree recorded on this ticket.** Before committing, ask the user which working tree to commit in — do NOT commit into the shared main checkout without confirmation.`,
+      ``,
+    );
+  }
+
+  lines.push(
+    `## Suggested flow`,
+    ``,
+    `1. \`cd\` into the ticket worktree${wtPath ? ` (\`${wtPath}\`)` : ''}.`,
+    `2. \`git status\` and \`git diff\` (plus \`git diff --staged\`) to inventory what actually changed. If there is nothing to commit, STOP: \`add_comment\` on the ticket saying the tree is clean and return control — don't create an empty commit.`,
+    `3. Determine the scope: which directory/subsystem dominates the diff? That's your \`<scope>\`. If changes are split, pick the most representative and mention the others in the body.`,
+    `4. Stage the correct files — prefer \`git add <path>...\` over \`git add -A\`. Skip unrelated cruft (editor swap files, .env, node_modules diff noise). If unrelated changes exist, leave them unstaged and mention it in the ticket comment (step 8).`,
+    `5. Craft the commit message per the convention below. Type comes from the ticket + diff (\`task\` → \`feat\` unless the diff says otherwise; \`bug\` → \`fix\`). Subject is imperative, ≤72 chars including \`<type>(<scope>): \` and the trailing \`(${id})\`.`,
+    `6. Body: one short paragraph explaining WHY, sourced from the ticket description — not a diff summary. Wrap at ~72 cols. No "Generated with…" trailer.`,
+    `7. Run \`git commit -m "<subject>" -m "<body>"\` (use two \`-m\` flags so subject/body separate cleanly; use a single-quoted PowerShell here-string \`@'…'@\` on Windows if the body has special chars). Do NOT push, do NOT merge, do NOT amend anything already on the branch.`,
+    `8. On success: \`add_comment\` on ${id} with the commit subject + short hash (from \`git rev-parse --short HEAD\`) so the reviewer can find it. Leave status as \`review\` — the human decides when to mark \`done\`.`,
+    `9. On any failure (hook rejects, pre-commit lint, etc.): do NOT bypass with \`--no-verify\`. Fix the underlying issue if trivial, otherwise \`update_ticket_status\` to \`blocked\` + \`add_comment\` naming the exact failure.`,
+    ``,
+    CONVENTIONAL_COMMIT_GUIDE,
+    ``,
     `## Ticket context`,
     '```json',
     JSON.stringify(ctx, null, 2),
@@ -289,7 +383,7 @@ export function orchestrateSprintPrompt(sprint: Sprint, tickets: Ticket[], users
     `3. cd into the returned path. Do NOT touch any other directory.`,
     `4. Re-read the ticket + comments if needed. Look at the actual repo.`,
     `5. Call \`update_ticket_status\` with \`{ id: "<TICKET_ID>", status: "progress" }\`.`,
-    `6. Do the work. Commit on your ticket branch. Do NOT merge, rebase against the sprint branch, or push.`,
+    `6. Do the work. Commit on your ticket branch using **Conventional Commits** — subject \`<type>(<scope>): <imperative> (<TICKET_ID>)\`. Do NOT merge, rebase against the sprint branch, or push.`,
     `7. When done: call \`update_ticket_status\` with \`status: "review"\`, then \`add_comment\` summarising what changed and how to verify.`,
     `8. Return control to the orchestrator with the ticket id + branch name.`,
     '```',
@@ -300,7 +394,7 @@ export function orchestrateSprintPrompt(sprint: Sprint, tickets: Ticket[], users
     `As each sub-agent reports back with a ticket in \`review\`:`,
     ``,
     `1. Verify with \`get_ticket\` that status is \`review\` and the ticket branch is set. Also check \`blockedBy\` in the response — sanity check that nothing regressed.`,
-    `2. From the sprint worktree, run \`git merge --no-ff <ticket-branch> -m "Merge <ticket-id>: <ticket-title>"\`.`,
+    `2. From the sprint worktree, run \`git merge --no-ff <ticket-branch> -m "chore(merge): <ticket-id> <ticket-title>"\` (Conventional Commits — see the convention block below).`,
     `3. **On merge conflict**: \`git merge --abort\`. Call \`add_comment\` on the ticket describing the conflicting paths + which other ticket(s) collided with it. Set status back to \`progress\` and re-fan a sub-agent to resolve — instruct the sub-agent to pull the latest sprint branch into its worktree first (\`git pull --rebase origin ${wtBranch}\` or \`git rebase ${wtBranch}\`), OR escalate to the human. Do not force anything.`,
     `4. **On clean merge**: \`update_ticket_status\` to \`done\` (this auto-removes the ticket worktree if clean). If you kept the ticket branch and want to prune it: \`git branch -d <ticket-branch>\`.`,
     `5. **After each done**: re-scan blocked tickets in this sprint. For any whose \`dependsOn\` are now all \`done\`, transition them back to \`backlog\` + \`add_comment\` noting the unblock, then fan out a sub-agent for it.`,
@@ -312,6 +406,8 @@ export function orchestrateSprintPrompt(sprint: Sprint, tickets: Ticket[], users
     `- The human takes it from there (PR to main, further review, etc.).`,
     ``,
     `Optionally, when the sprint work is fully merged upstream, call \`remove_sprint_worktree\` with \`{ sprintId: "${sprint.id}", keepBranch: true }\` to prune the checkout while preserving the branch history.`,
+    ``,
+    CONVENTIONAL_COMMIT_GUIDE,
     ``,
     `## Sprint context`,
     '```json',

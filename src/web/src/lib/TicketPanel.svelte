@@ -5,7 +5,7 @@
   import { copyToClipboard, showToast } from './clipboard';
   import { runPrompt } from './claudeRun';
   import { currentUserId } from './currentUser';
-  import { ticketAskPrompt, workOnTicketPrompt } from './prompts';
+  import { commitTicketPrompt, ticketAskPrompt, workOnTicketPrompt } from './prompts';
   import X from './icons/X.svelte';
   import Sparkles from './icons/Sparkles.svelte';
 
@@ -131,6 +131,13 @@
     runPrompt(workOnTicketPrompt(ticket, users, sprints, allTickets), {
       cwd: ticket.worktree?.path,
       label: 'Work on ' + ticket.id,
+    });
+  }
+  function commitWithClaude() {
+    if (!ticket) return;
+    runPrompt(commitTicketPrompt(ticket, users, sprints, allTickets), {
+      cwd: ticket.worktree?.path,
+      label: 'Commit ' + ticket.id,
     });
   }
 
@@ -307,7 +314,7 @@
     return idx >= 0 ? { user: users[idx], index: idx } : null;
   }
 
-  $: prio = draft.priority ? PRIORITY_META[draft.priority as any] : null;
+  $: prio = draft.priority ? PRIORITY_META[draft.priority] : null;
 
   // Auto-grow textarea up to a cap (defaults to 60vh). Runs on mount and every input.
   // Once the content exceeds the cap, native scrolling kicks in via overflow-y: auto in CSS.
@@ -567,6 +574,16 @@
         <Sparkles size={14} color="#fff" />
         <span>Work on this</span>
       </button>
+
+      {#if ticket.status === 'review'}
+        <button class="commit-btn" on:click={commitWithClaude} title={ticket.worktree ? `Commit in ${ticket.worktree.path}` : 'No worktree recorded — Claude will ask before touching main'}>
+          <Sparkles size={14} color="#fff" />
+          <span>Commit with Claude</span>
+        </button>
+        <div class="ai-hint">
+          Runs Claude in {ticket.worktree ? 'the ticket worktree' : 'the repo root'} to craft a Conventional Commit (<code>&lt;type&gt;(&lt;scope&gt;): … ({ticket.id})</code>) from the current diff.
+        </div>
+      {/if}
 
       <div class="ai-hint" style="margin-top:2px">Or a narrower question:</div>
       <div class="ai-chips">
@@ -925,6 +942,29 @@
     transition: opacity .12s;
   }
   .work-btn:hover { opacity: .9; }
+  .commit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 12px;
+    background: linear-gradient(135deg, #46c17f, #2f8f5b);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .12s;
+  }
+  .commit-btn:hover { opacity: .9; }
+  .ai-hint code {
+    background: var(--surface);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 10.5px;
+    font-family: 'IBM Plex Mono';
+  }
   .ai-chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .ai-chip {
     padding: 4px 8px;
